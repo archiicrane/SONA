@@ -1,6 +1,6 @@
 async function loadRawData() {
   try {
-    const response = await fetch("/api/history");
+    const response = await fetch("/api/arduino");
     const rows = await response.json();
 
     const tbody = document.querySelector("#rawTable tbody");

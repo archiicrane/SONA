@@ -437,7 +437,7 @@ function updateTitle(view) {
 }
 
 async function loadHistory(view = "hour") {
-  const response = await fetch("/api/history");
+  const response = await fetch("/api/arduino");
   const rows = await response.json();
 
   let bucketedData = [];
