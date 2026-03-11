@@ -39,6 +39,47 @@ function stateFromSound(db) {
   return "loud";
 }
 
+function getStoredHistory() {
+  try {
+    return JSON.parse(localStorage.getItem("sonaHistory")) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredHistory(rows) {
+  localStorage.setItem("sonaHistory", JSON.stringify(rows.slice(-2000)));
+}
+
+async function pullLatestReading() {
+  try {
+    const response = await fetch("/api/arduino");
+    if (!response.ok) throw new Error("Failed to fetch live data");
+
+    const data = await response.json();
+
+    const sound = Number(data.sound_db);
+    const distance = Number(data.distance_cm);
+
+    if (Number.isNaN(sound) || Number.isNaN(distance)) return;
+
+    const rows = getStoredHistory();
+
+    rows.push({
+      timestamp: new Date().toISOString(),
+      sound: sound,
+      distance_cm: distance,
+      sound_state: data.sound_state || stateFromSound(sound)
+    });
+
+    saveStoredHistory(rows);
+  } catch (err) {
+    console.error("History fetch error:", err);
+  }
+}
+
+
+
 function buildMinuteBuckets(rows, minutesBack = 60) {
   const now = new Date();
   const start = new Date(now.getTime() - minutesBack * 60 * 1000);
@@ -437,8 +478,8 @@ function updateTitle(view) {
 }
 
 async function loadHistory(view = "hour") {
-  const response = await fetch("/api/arduino");
-  const rows = await response.json();
+  await pullLatestReading();
+  const rows = getStoredHistory();
 
   let bucketedData = [];
 
@@ -480,3 +521,4 @@ document.querySelectorAll(".tab-button").forEach((button) => {
 });
 
 loadHistory(currentView);
+setInterval(() => loadHistory(currentView), 5000);
