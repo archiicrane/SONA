@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SONA Analysis</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="analysis-scroll">
+  <div class="app-shell">
+    <div class="sona-header">
+      <div class="sona-brand">
+        <h1 class="sona-title">SONA</h1>
+        <div class="sona-tagline">So Over Nosey Assholes</div>
+      </div>
+    </div>
+
+    <div class="page-card analysis-page">
+      <div class="top-bar analysis-top-bar">
+        <div>
+          <div class="analysis-page-label">System Analysis</div>
+          <h2 class="analysis-page-title">Acoustic Monitoring Analytics</h2>
+        </div>
+
+        <div class="button-row">
+          <a class="nav-button compact-button" href="/">Dashboard</a>
+          <a class="nav-button compact-button" href="/raw">Data</a>
+        </div>
+      </div>
+
+      <div class="history-tabs">
+        <button class="tab-button active" data-view="hour">Hour</button>
+        <button class="tab-button" data-view="day">Day</button>
+        <button class="tab-button" data-view="month">Month</button>
+      </div>
+
+      <div class="history-grid">
+        <div class="card history-chart-card">
+          <div class="label" id="chartTitle">Estimated Sound Levels — Hour View</div>
+          <canvas id="historyChart"></canvas>
+        </div>
+
+        <div class="history-summary-grid">
+          <div class="card summary-card">
+            <div class="mini-label">Average Estimated dB</div>
+            <div class="summary-value" id="avgSound">--</div>
+          </div>
+
+          <div class="card summary-card">
+            <div class="mini-label">Peak Estimated dB</div>
+            <div class="summary-value" id="maxSound">--</div>
+          </div>
+
+          <div class="card summary-card">
+            <div class="mini-label">Dominant State</div>
+            <div class="summary-value" id="dominantState">--</div>
+          </div>
+
+          <div class="card summary-card">
+            <div class="mini-label">Average Distance</div>
+            <div class="summary-value" id="avgDistance">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="secondary-analysis-grid">
+        <div class="card mini-chart-card">
+          <div class="label">Sound State Distribution</div>
+          <canvas id="stateChart"></canvas>
+        </div>
+
+        <div class="card mini-chart-card">
+          <div class="label">Distance Trend</div>
+          <canvas id="distanceChart"></canvas>
+        </div>
+
+        <div class="card heatmap-card">
+          <div class="label">Future 3-Sensor Room Heatmap</div>
+          <div class="heatmap-placeholder">
+            <div class="heatmap-room">
+              <div class="heat-zone zone-1"></div>
+              <div class="heat-zone zone-2"></div>
+              <div class="heat-zone zone-3"></div>
+
+              <div class="sensor-dot dot-1">S1</div>
+              <div class="sensor-dot dot-2">S2</div>
+              <div class="sensor-dot dot-3">S3</div>
+            </div>
+
+            <div class="heatmap-note">
+              Placeholder for future Unity / spatial acoustic heatmap
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="history.js"></script>
+</body>
+</html>

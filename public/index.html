@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SONA Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sona-header">
+      <div class="sona-brand">
+        <h1 class="sona-title">SONA</h1>
+        <div class="sona-tagline">So Over Nosey Assholes</div>
+      </div>
+    </div>
+
+    <div class="app-layout">
+      <div class="left-panel">
+        <div class="dashboard">
+          <div class="sensor-grid">
+            <div class="card sensor-card active-card">
+              <div class="sensor-top">
+                <div class="label">Sensor 1 — Active</div>
+                <div class="sensor-badge online">Live</div>
+              </div>
+
+              <div class="sensor-meta">
+                <div class="metric-block">
+                  <div class="mini-label">Estimated dB</div>
+                  <div class="value" id="soundValue">--</div>
+                </div>
+
+                <div class="metric-block">
+                  <div class="mini-label">Distance</div>
+                  <div class="value" id="distanceValue">--</div>
+                </div>
+              </div>
+
+              <div class="mini-label status-label">Status</div>
+              <div class="status-box error" id="statusBox1">WAITING</div>
+            </div>
+
+            <div class="card sensor-card placeholder-card">
+              <div class="sensor-top">
+                <div class="label">Sensor 2 — Placeholder</div>
+                <div class="sensor-badge offline">Future</div>
+              </div>
+
+              <div class="sensor-meta">
+                <div class="metric-block">
+                  <div class="mini-label">Estimated dB</div>
+                  <div class="value muted">--</div>
+                </div>
+
+                <div class="metric-block">
+                  <div class="mini-label">Distance</div>
+                  <div class="value muted">--</div>
+                </div>
+              </div>
+
+              <div class="mini-label status-label">Status</div>
+              <div class="status-box placeholder-status">PLACEHOLDER</div>
+            </div>
+
+            <div class="card sensor-card placeholder-card">
+              <div class="sensor-top">
+                <div class="label">Sensor 3 — Placeholder</div>
+                <div class="sensor-badge offline">Future</div>
+              </div>
+
+              <div class="sensor-meta">
+                <div class="metric-block">
+                  <div class="mini-label">Estimated dB</div>
+                  <div class="value muted">--</div>
+                </div>
+
+                <div class="metric-block">
+                  <div class="mini-label">Distance</div>
+                  <div class="value muted">--</div>
+                </div>
+              </div>
+
+              <div class="mini-label status-label">Status</div>
+              <div class="status-box placeholder-status">PLACEHOLDER</div>
+            </div>
+          </div>
+
+          <div class="card waveform-card">
+            <div class="wave-header-row">
+              <div class="label wave-title">Live Sound Wave</div>
+
+              <div class="wave-actions">
+                <a class="nav-button compact-button" href="/history">Analysis</a>
+                <a class="nav-button compact-button" href="/raw">Data</a>
+              </div>
+            </div>
+
+            <canvas id="waveCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="unity-card">
+          <div class="unity-placeholder">
+            Unity WebGL model will appear here
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

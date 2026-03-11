@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SONA Data</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="analysis-scroll">
+  <div class="app-shell">
+    <div class="sona-header">
+      <div class="sona-brand">
+        <h1 class="sona-title">SONA</h1>
+        <div class="sona-tagline">So Over Nosey Assholes</div>
+      </div>
+    </div>
+
+    <div class="page-card analysis-page">
+      <div class="top-bar analysis-top-bar">
+        <div>
+          <div class="analysis-page-label">System Data</div>
+          <h2 class="analysis-page-title">Raw Sensor Data</h2>
+        </div>
+
+        <div class="button-row">
+          <a class="nav-button compact-button" href="/">Dashboard</a>
+          <a class="nav-button compact-button" href="/history">Analysis</a>
+        </div>
+      </div>
+
+      <div class="card raw-data-card">
+        <div class="label">Saved Sensor Readings</div>
+
+        <div class="table-wrap">
+          <table id="rawTable">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Estimated dB</th>
+                <th>Sound State</th>
+                <th>Distance (cm)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="raw.js"></script>
+</body>
+</html>
