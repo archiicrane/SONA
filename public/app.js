@@ -78,7 +78,7 @@ function setStatus(box, state, fallbackText = "NO DATA") {
 
 async function loadLiveData() {
   try {
-    const response = await fetch("/api/live");
+    const response = await fetch("/api/arduino");
     if (!response.ok) throw new Error("Live fetch failed");
 
     const data = await response.json();
