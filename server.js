@@ -20,6 +20,23 @@ if (!fs.existsSync(DATA_FILE)) {
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
+let latestArduinoData = {
+  sound_db: 0,
+  distance_cm: 0,
+  sound_state: "quiet",
+  led: false
+};
+
+app.get("/api/arduino", (req, res) => {
+  res.json(latestArduinoData);
+});
+
+app.post("/api/arduino", (req, res) => {
+  latestArduinoData = req.body;
+  console.log("Received Arduino data:", latestArduinoData);
+  res.json({ status: "received" });
+});
+
 function readSavedData() {
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf8");
