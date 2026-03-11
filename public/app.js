@@ -83,7 +83,7 @@ async function loadLiveData() {
 
     const data = await response.json();
 
-    const soundNumber = Number(data.sound);
+    const soundNumber = Number(data.sound_db);
     const distanceNumber = Number(data.distance_cm);
 
     if (!Number.isNaN(soundNumber)) {
