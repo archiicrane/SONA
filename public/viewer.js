@@ -5,7 +5,7 @@ import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders
 console.log("viewer.js loaded");
 
 const container = document.getElementById("viewer3d");
-
+container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:rgba(255,255,255,0.55);font-family:Arial,sans-serif;letter-spacing:0.08em;text-transform:uppercase;">Loading 3D View...</div>';
 if (!container) {
   console.error("viewer3d container not found");
 } else {
@@ -25,6 +25,7 @@ if (!container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(window.devicePixelRatio);
+  container.innerHTML = "";
   container.appendChild(renderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -76,7 +77,12 @@ if (!container) {
       }
     },
     (error) => {
-      console.error("Model failed to load:", error);
+        console.error("Model failed to load:", error);
+        container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:rgba(255,255,255,0.6);font-family:Arial,sans-serif;text-align:center;padding:24px;">
+        3D model failed to load
+        </div>
+        `;
     }
   );
 
