@@ -9,3 +9,4 @@ loader.load(
     console.error("Model failed to load:", error);
   }
 );
+console.log('TEST CHANGE')
