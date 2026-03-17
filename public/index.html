@@ -19,71 +19,73 @@
       <div class="left-panel">
         <div class="dashboard">
           <div class="sensor-grid">
-            <div class="card sensor-card active-card">
+
+            <div class="card sensor-card active-card" id="sona1Card">
               <div class="sensor-top">
-                <div class="label">Sensor 1 — Active</div>
-                <div class="sensor-badge online">Live</div>
+                <div class="label" id="sona1Title">Sensor 1 — Active</div>
+                <div class="sensor-badge online" id="sona1Badge">Live</div>
               </div>
 
               <div class="sensor-meta">
                 <div class="metric-block">
                   <div class="mini-label">Estimated dB</div>
-                  <div class="value" id="soundValue">--</div>
+                  <div class="value" id="sona1Sound">--</div>
                 </div>
 
                 <div class="metric-block">
                   <div class="mini-label">Distance</div>
-                  <div class="value" id="distanceValue">--</div>
+                  <div class="value" id="sona1Distance">--</div>
                 </div>
               </div>
 
               <div class="mini-label status-label">Status</div>
-              <div class="status-box error" id="statusBox1">WAITING</div>
+              <div class="status-box error" id="sona1Status">WAITING</div>
             </div>
 
-            <div class="card sensor-card placeholder-card">
+            <div class="card sensor-card placeholder-card" id="sona2Card">
               <div class="sensor-top">
-                <div class="label">Sensor 2 — Placeholder</div>
-                <div class="sensor-badge offline">Future</div>
+                <div class="label" id="sona2Title">Sensor 2</div>
+                <div class="sensor-badge offline" id="sona2Badge">Future</div>
               </div>
 
               <div class="sensor-meta">
                 <div class="metric-block">
                   <div class="mini-label">Estimated dB</div>
-                  <div class="value muted">--</div>
+                  <div class="value muted" id="sona2Sound">--</div>
                 </div>
 
                 <div class="metric-block">
                   <div class="mini-label">Distance</div>
-                  <div class="value muted">--</div>
+                  <div class="value muted" id="sona2Distance">--</div>
                 </div>
               </div>
 
               <div class="mini-label status-label">Status</div>
-              <div class="status-box placeholder-status">PLACEHOLDER</div>
+              <div class="status-box placeholder-status" id="sona2Status">PLACEHOLDER</div>
             </div>
 
-            <div class="card sensor-card placeholder-card">
+            <div class="card sensor-card placeholder-card" id="sona3Card">
               <div class="sensor-top">
-                <div class="label">Sensor 3 — Placeholder</div>
-                <div class="sensor-badge offline">Future</div>
+                <div class="label" id="sona3Title">Sensor 3</div>
+                <div class="sensor-badge offline" id="sona3Badge">Future</div>
               </div>
 
               <div class="sensor-meta">
                 <div class="metric-block">
                   <div class="mini-label">Estimated dB</div>
-                  <div class="value muted">--</div>
+                  <div class="value muted" id="sona3Sound">--</div>
                 </div>
 
                 <div class="metric-block">
                   <div class="mini-label">Distance</div>
-                  <div class="value muted">--</div>
+                  <div class="value muted" id="sona3Distance">--</div>
                 </div>
               </div>
 
               <div class="mini-label status-label">Status</div>
-              <div class="status-box placeholder-status">PLACEHOLDER</div>
+              <div class="status-box placeholder-status" id="sona3Status">PLACEHOLDER</div>
             </div>
+
           </div>
 
           <div class="card waveform-card">

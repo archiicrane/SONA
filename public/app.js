@@ -1,9 +1,14 @@
-const soundHistory = [];
+const soundHistory = {
+  sona1: [],
+  sona2: [],
+  sona3: []
+};
+
 const maxPoints = 120;
+const sensorIds = ["sona1", "sona2", "sona3"];
 
 const canvas = document.getElementById("waveCanvas");
 const ctx = canvas.getContext("2d");
-const statusBox1 = document.getElementById("statusBox1");
 
 function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
@@ -11,7 +16,7 @@ function resizeCanvas() {
   canvas.height = rect.height;
 }
 
-function drawGraph() {
+function drawGraph(activeSensorId) {
   const w = canvas.width;
   const h = canvas.height;
 
@@ -31,7 +36,7 @@ function drawGraph() {
     ctx.stroke();
   }
 
-  if (soundHistory.length < 2) return;
+  if (!activeSensorId || soundHistory[activeSensorId].length < 2) return;
 
   ctx.strokeStyle = "#9FD0FF";
   ctx.lineWidth = 3;
@@ -39,11 +44,12 @@ function drawGraph() {
 
   const minDb = 35;
   const maxDb = 85;
+  const history = soundHistory[activeSensorId];
 
-  for (let i = 0; i < soundHistory.length; i++) {
+  for (let i = 0; i < history.length; i++) {
     const x = (i / (maxPoints - 1)) * w;
 
-    let normalized = (soundHistory[i] - minDb) / (maxDb - minDb);
+    let normalized = (history[i] - minDb) / (maxDb - minDb);
     normalized = Math.max(0, Math.min(1, normalized));
 
     const y = h - normalized * (h - 20) - 10;
@@ -59,6 +65,8 @@ function drawGraph() {
 }
 
 function setStatus(box, state, fallbackText = "NO DATA") {
+  if (!box) return;
+
   box.classList.remove("quiet", "medium", "loud", "error");
 
   if (state === "quiet") {
@@ -76,39 +84,137 @@ function setStatus(box, state, fallbackText = "NO DATA") {
   }
 }
 
+function getSoundState(sound) {
+  if (sound >= 70) return "loud";
+  if (sound >= 50) return "medium";
+  return "quiet";
+}
+
+function updateCardClasses(card, isActive, isLive) {
+  if (!card) return;
+
+  card.classList.remove("active-card", "placeholder-card");
+
+  if (isActive) {
+    card.classList.add("active-card");
+  } else {
+    card.classList.add("placeholder-card");
+  }
+}
+
+function updateBadge(badgeEl, isActive, isLive) {
+  if (!badgeEl) return;
+
+  badgeEl.classList.remove("online", "offline");
+
+  if (isActive) {
+    badgeEl.textContent = "Live";
+    badgeEl.classList.add("online");
+  } else if (isLive) {
+    badgeEl.textContent = "Ready";
+    badgeEl.classList.add("online");
+  } else {
+    badgeEl.textContent = "Offline";
+    badgeEl.classList.add("offline");
+  }
+}
+
+function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
+  const cardEl = document.getElementById(`${sensorId}Card`);
+  const titleEl = document.getElementById(`${sensorId}Title`);
+  const badgeEl = document.getElementById(`${sensorId}Badge`);
+  const soundEl = document.getElementById(`${sensorId}Sound`);
+  const distanceEl = document.getElementById(`${sensorId}Distance`);
+  const statusEl = document.getElementById(`${sensorId}Status`);
+
+  if (!sensorData) {
+    if (titleEl) titleEl.textContent = `Sensor ${sensorNumber}`;
+    if (soundEl) soundEl.textContent = "--";
+    if (distanceEl) distanceEl.textContent = "--";
+    setStatus(statusEl, null, "NO DATA");
+    updateBadge(badgeEl, false, false);
+    updateCardClasses(cardEl, false, false);
+    return;
+  }
+
+  const sound = Number(sensorData.sound);
+  const distance = Number(sensorData.distance);
+  const updatedAt = Number(sensorData.updatedAt || 0);
+  const age = Date.now() - updatedAt;
+  const isLive = age < 6000;
+
+  if (titleEl) {
+    titleEl.textContent = isActive
+      ? `Sensor ${sensorNumber} — Active`
+      : `Sensor ${sensorNumber}`;
+  }
+
+  if (soundEl) {
+    soundEl.textContent = !Number.isNaN(sound) ? `${sound.toFixed(1)} dB` : "--";
+  }
+
+  if (distanceEl) {
+    distanceEl.textContent =
+      !Number.isNaN(distance) && distance >= 0 ? `${distance.toFixed(1)} cm` : "--";
+  }
+
+  if (!Number.isNaN(sound) && isLive) {
+    setStatus(statusEl, getSoundState(sound), "WAITING");
+
+    soundHistory[sensorId].push(sound);
+    if (soundHistory[sensorId].length > maxPoints) {
+      soundHistory[sensorId].shift();
+    }
+  } else {
+    setStatus(statusEl, null, "WAITING");
+  }
+
+  updateBadge(badgeEl, isActive, isLive);
+  updateCardClasses(cardEl, isActive, isLive);
+}
+
+function findLoudestSensor(data) {
+  let loudestId = null;
+  let loudestValue = -Infinity;
+
+  for (const id of sensorIds) {
+    const sensor = data[id];
+    if (!sensor) continue;
+
+    const sound = Number(sensor.sound);
+    const updatedAt = Number(sensor.updatedAt || 0);
+    const age = Date.now() - updatedAt;
+
+    if (age > 6000) continue;
+    if (Number.isNaN(sound)) continue;
+
+    if (sound > loudestValue) {
+      loudestValue = sound;
+      loudestId = id;
+    }
+  }
+
+  return loudestId;
+}
+
 async function loadLiveData() {
   try {
     const response = await fetch("/api/arduino");
     if (!response.ok) throw new Error("Live fetch failed");
 
     const data = await response.json();
+    const activeSensorId = findLoudestSensor(data);
 
-    const soundNumber = Number(data.sound_db);
-    const distanceNumber = Number(data.distance_cm);
+    updateSensorCard("sona1", data.sona1, activeSensorId === "sona1", 1);
+    updateSensorCard("sona2", data.sona2, activeSensorId === "sona2", 2);
+    updateSensorCard("sona3", data.sona3, activeSensorId === "sona3", 3);
 
-    if (!Number.isNaN(soundNumber)) {
-      document.getElementById("soundValue").textContent = `${soundNumber.toFixed(1)} dB`;
-
-      soundHistory.push(soundNumber);
-      if (soundHistory.length > maxPoints) {
-        soundHistory.shift();
-      }
-    } else {
-      document.getElementById("soundValue").textContent = "--";
-    }
-
-    if (Number.isNaN(distanceNumber) || distanceNumber < 0) {
-      document.getElementById("distanceValue").textContent = "--";
-    } else {
-      document.getElementById("distanceValue").textContent = `${distanceNumber.toFixed(1)} cm`;
-    }
-
-    setStatus(statusBox1, data.sound_state, "WAITING");
-    drawGraph();
+    drawGraph(activeSensorId);
   } catch (error) {
-    document.getElementById("soundValue").textContent = "--";
-    document.getElementById("distanceValue").textContent = "--";
-    setStatus(statusBox1, null, "NO DATA");
+    updateSensorCard("sona1", null, false, 1);
+    updateSensorCard("sona2", null, false, 2);
+    updateSensorCard("sona3", null, false, 3);
+    drawGraph(null);
   }
 }
 
@@ -116,8 +222,8 @@ resizeCanvas();
 
 window.addEventListener("resize", () => {
   resizeCanvas();
-  drawGraph();
+  drawGraph(null);
 });
 
-setInterval(loadLiveData, 300);
+setInterval(loadLiveData, 1000);
 loadLiveData();
