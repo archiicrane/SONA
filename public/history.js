@@ -41,49 +41,17 @@ function stateFromSound(db) {
   return "loud";
 }
 
-function getStoredHistory() {
-  try {
-    return JSON.parse(localStorage.getItem("sonaHistory")) || [];
-  } catch {
-    return [];
+async function fetchHistoryRows() {
+  const query = selectedSensor
+    ? `/api/history?sensor=${encodeURIComponent(selectedSensor)}&limit=5000`
+    : "/api/history?limit=5000";
+
+  const response = await fetch(query);
+  if (!response.ok) {
+    throw new Error("Failed to fetch history");
   }
-}
 
-function saveStoredHistory(rows) {
-  localStorage.setItem("sonaHistory", JSON.stringify(rows.slice(-2000)));
-}
-
-async function pullLatestReading() {
-  try {
-    const response = await fetch("/api/arduino");
-    if (!response.ok) throw new Error("Failed to fetch live data");
-
-    const data = await response.json();
-    let rows = getStoredHistory();
-    if (selectedSensor) {
-      rows = rows.filter((row) => row.sensor === selectedSensor);
-    }
-    const timestamp = new Date().toISOString();
-
-    for (const [sensorId, sensorData] of Object.entries(data)) {
-      const sound = Number(sensorData.sound);
-      const distance = Number(sensorData.distance);
-
-      if (Number.isNaN(sound) || Number.isNaN(distance)) continue;
-
-      rows.push({
-        sensor: sensorId,
-        timestamp,
-        sound,
-        distance_cm: distance,
-        sound_state: stateFromSound(sound)
-      });
-    }
-
-    saveStoredHistory(rows);
-  } catch (err) {
-    console.error("History fetch error:", err);
-  }
+  return response.json();
 }
 
 function updatePageHeading() {
@@ -104,19 +72,13 @@ function updatePageHeading() {
 function buildMinuteBuckets(rows, minutesBack = 60) {
   const now = new Date();
   const start = new Date(now.getTime() - minutesBack * 60 * 1000);
-
   const bucketMap = new Map();
 
   for (let i = 0; i < minutesBack; i++) {
     const bucketDate = new Date(start.getTime() + i * 60 * 1000);
     bucketDate.setSeconds(0, 0);
-
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}-${bucketDate.getMinutes()}`;
-    bucketMap.set(key, {
-      date: bucketDate,
-      sounds: [],
-      distances: []
-    });
+    bucketMap.set(key, { date: bucketDate, sounds: [], distances: [] });
   }
 
   for (const row of rows) {
@@ -125,7 +87,6 @@ function buildMinuteBuckets(rows, minutesBack = 60) {
 
     const bucketDate = new Date(date);
     bucketDate.setSeconds(0, 0);
-
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}-${bucketDate.getMinutes()}`;
     const bucket = bucketMap.get(key);
     if (!bucket) continue;
@@ -147,19 +108,13 @@ function buildMinuteBuckets(rows, minutesBack = 60) {
 function buildHourBuckets(rows, hoursBack = 24) {
   const now = new Date();
   const start = new Date(now.getTime() - hoursBack * 60 * 60 * 1000);
-
   const bucketMap = new Map();
 
   for (let i = 0; i < hoursBack; i++) {
     const bucketDate = new Date(start.getTime() + i * 60 * 60 * 1000);
     bucketDate.setMinutes(0, 0, 0);
-
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}`;
-    bucketMap.set(key, {
-      date: bucketDate,
-      sounds: [],
-      distances: []
-    });
+    bucketMap.set(key, { date: bucketDate, sounds: [], distances: [] });
   }
 
   for (const row of rows) {
@@ -168,7 +123,6 @@ function buildHourBuckets(rows, hoursBack = 24) {
 
     const bucketDate = new Date(date);
     bucketDate.setMinutes(0, 0, 0);
-
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}`;
     const bucket = bucketMap.get(key);
     if (!bucket) continue;
@@ -190,19 +144,13 @@ function buildHourBuckets(rows, hoursBack = 24) {
 function buildDayBuckets(rows, daysBack = 30) {
   const now = new Date();
   const start = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
-
   const bucketMap = new Map();
 
   for (let i = 0; i < daysBack; i++) {
     const bucketDate = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
     bucketDate.setHours(0, 0, 0, 0);
-
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}`;
-    bucketMap.set(key, {
-      date: bucketDate,
-      sounds: [],
-      distances: []
-    });
+    bucketMap.set(key, { date: bucketDate, sounds: [], distances: [] });
   }
 
   for (const row of rows) {
@@ -211,7 +159,6 @@ function buildDayBuckets(rows, daysBack = 30) {
 
     const bucketDate = new Date(date);
     bucketDate.setHours(0, 0, 0, 0);
-
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}`;
     const bucket = bucketMap.get(key);
     if (!bucket) continue;
@@ -231,31 +178,20 @@ function buildDayBuckets(rows, daysBack = 30) {
 }
 
 function updateSummary(bucketedData) {
-  const validSound = bucketedData
-    .map((d) => d.sound)
-    .filter((v) => v != null && !Number.isNaN(v));
-
-  const validDistance = bucketedData
-    .map((d) => d.distance)
-    .filter((v) => v != null && !Number.isNaN(v));
+  const validSound = bucketedData.map((d) => d.sound).filter((v) => v != null && !Number.isNaN(v));
+  const validDistance = bucketedData.map((d) => d.distance).filter((v) => v != null && !Number.isNaN(v));
 
   const avgSound = average(validSound);
   const maxSound = validSound.length ? Math.max(...validSound) : null;
   const avgDistance = average(validDistance);
 
-  const stateCounts = {
-    quiet: 0,
-    medium: 0,
-    loud: 0
-  };
-
+  const stateCounts = { quiet: 0, medium: 0, loud: 0 };
   for (const s of validSound) {
     stateCounts[stateFromSound(s)]++;
   }
 
   let dominantState = "--";
   let bestCount = -1;
-
   for (const [state, count] of Object.entries(stateCounts)) {
     if (count > bestCount) {
       dominantState = state;
@@ -263,17 +199,10 @@ function updateSummary(bucketedData) {
     }
   }
 
-  document.getElementById("avgSound").textContent =
-    avgSound == null ? "--" : `${avgSound.toFixed(1)} dB`;
-
-  document.getElementById("maxSound").textContent =
-    maxSound == null ? "--" : `${maxSound.toFixed(1)} dB`;
-
-  document.getElementById("avgDistance").textContent =
-    avgDistance == null ? "--" : `${avgDistance.toFixed(1)} cm`;
-
-  document.getElementById("dominantState").textContent =
-    dominantState === "--" ? "--" : dominantState.toUpperCase();
+  document.getElementById("avgSound").textContent = avgSound == null ? "--" : `${avgSound.toFixed(1)} dB`;
+  document.getElementById("maxSound").textContent = maxSound == null ? "--" : `${maxSound.toFixed(1)} dB`;
+  document.getElementById("avgDistance").textContent = avgDistance == null ? "--" : `${avgDistance.toFixed(1)} cm`;
+  document.getElementById("dominantState").textContent = dominantState === "--" ? "--" : dominantState.toUpperCase();
 
   renderStateChart(stateCounts);
   renderDistanceChart(bucketedData);
@@ -284,11 +213,7 @@ function getChartConfig(view, labels, values) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        labels: {
-          color: "#D8E2FF"
-        }
-      }
+      legend: { labels: { color: "#D8E2FF" } }
     },
     scales: {
       x: {
@@ -297,22 +222,12 @@ function getChartConfig(view, labels, values) {
           maxRotation: view === "hour" ? 0 : 45,
           minRotation: view === "hour" ? 0 : 45
         },
-        grid: {
-          color: "rgba(255,255,255,0.06)"
-        }
+        grid: { color: "rgba(255,255,255,0.06)" }
       },
       y: {
-        ticks: {
-          color: "#C8D3F7"
-        },
-        grid: {
-          color: "rgba(255,255,255,0.08)"
-        },
-        title: {
-          display: true,
-          text: "Estimated dB",
-          color: "#D8E2FF"
-        }
+        ticks: { color: "#C8D3F7" },
+        grid: { color: "rgba(255,255,255,0.08)" },
+        title: { display: true, text: "Estimated dB", color: "#D8E2FF" }
       }
     }
   };
@@ -322,16 +237,14 @@ function getChartConfig(view, labels, values) {
       type: "bar",
       data: {
         labels,
-        datasets: [
-          {
-            label: "Hourly Avg Estimated dB",
-            data: values,
-            borderWidth: 1,
-            borderRadius: 8,
-            backgroundColor: "rgba(159, 208, 255, 0.65)",
-            borderColor: "rgba(191, 228, 255, 1)"
-          }
-        ]
+        datasets: [{
+          label: "Hourly Avg Estimated dB",
+          data: values,
+          borderWidth: 1,
+          borderRadius: 8,
+          backgroundColor: "rgba(159, 208, 255, 0.65)",
+          borderColor: "rgba(191, 228, 255, 1)"
+        }]
       },
       options: commonOptions
     };
@@ -342,18 +255,16 @@ function getChartConfig(view, labels, values) {
       type: "line",
       data: {
         labels,
-        datasets: [
-          {
-            label: "Daily Avg Estimated dB",
-            data: values,
-            borderColor: "#9FD0FF",
-            backgroundColor: "rgba(159, 208, 255, 0.18)",
-            fill: true,
-            tension: 0.35,
-            pointRadius: 0,
-            pointHoverRadius: 4
-          }
-        ]
+        datasets: [{
+          label: "Daily Avg Estimated dB",
+          data: values,
+          borderColor: "#9FD0FF",
+          backgroundColor: "rgba(159, 208, 255, 0.18)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        }]
       },
       options: commonOptions
     };
@@ -363,18 +274,16 @@ function getChartConfig(view, labels, values) {
     type: "line",
     data: {
       labels,
-      datasets: [
-        {
-          label: "Minute Avg Estimated dB",
-          data: values,
-          borderColor: "#9FD0FF",
-          backgroundColor: "rgba(159, 208, 255, 0.18)",
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-          pointHoverRadius: 4
-        }
-      ]
+      datasets: [{
+        label: "Minute Avg Estimated dB",
+        data: values,
+        borderColor: "#9FD0FF",
+        backgroundColor: "rgba(159, 208, 255, 0.18)",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHoverRadius: 4
+      }]
     },
     options: commonOptions
   };
@@ -382,84 +291,58 @@ function getChartConfig(view, labels, values) {
 
 function renderStateChart(stateCounts) {
   const ctx = document.getElementById("stateChart").getContext("2d");
-
-  if (stateChart) {
-    stateChart.destroy();
-  }
+  if (stateChart) stateChart.destroy();
 
   stateChart = new Chart(ctx, {
     type: "doughnut",
     data: {
       labels: ["Quiet", "Medium", "Loud"],
-      datasets: [
-        {
-          data: [
-            stateCounts.quiet,
-            stateCounts.medium,
-            stateCounts.loud
-          ],
-          backgroundColor: [
-            "rgba(160, 233, 185, 0.85)",
-            "rgba(244, 211, 94, 0.85)",
-            "rgba(255, 107, 107, 0.85)"
-          ],
-          borderColor: [
-            "rgba(160, 233, 185, 1)",
-            "rgba(244, 211, 94, 1)",
-            "rgba(255, 107, 107, 1)"
-          ],
-          borderWidth: 1
-        }
-      ]
+      datasets: [{
+        data: [stateCounts.quiet, stateCounts.medium, stateCounts.loud],
+        backgroundColor: [
+          "rgba(160, 233, 185, 0.85)",
+          "rgba(244, 211, 94, 0.85)",
+          "rgba(255, 107, 107, 0.85)"
+        ],
+        borderColor: [
+          "rgba(160, 233, 185, 1)",
+          "rgba(244, 211, 94, 1)",
+          "rgba(255, 107, 107, 1)"
+        ],
+        borderWidth: 1
+      }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: {
-            color: "#D8E2FF"
-          }
-        }
-      }
+      plugins: { legend: { labels: { color: "#D8E2FF" } } }
     }
   });
 }
 
 function renderDistanceChart(bucketedData) {
   const ctx = document.getElementById("distanceChart").getContext("2d");
-
-  if (distanceChart) {
-    distanceChart.destroy();
-  }
+  if (distanceChart) distanceChart.destroy();
 
   distanceChart = new Chart(ctx, {
     type: "line",
     data: {
       labels: bucketedData.map((d) => d.label),
-      datasets: [
-        {
-          label: "Distance (cm)",
-          data: bucketedData.map((d) => d.distance),
-          borderColor: "#C5B6FF",
-          backgroundColor: "rgba(197, 182, 255, 0.15)",
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-          pointHoverRadius: 4
-        }
-      ]
+      datasets: [{
+        label: "Distance (cm)",
+        data: bucketedData.map((d) => d.distance),
+        borderColor: "#C5B6FF",
+        backgroundColor: "rgba(197, 182, 255, 0.15)",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHoverRadius: 4
+      }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: {
-            color: "#D8E2FF"
-          }
-        }
-      },
+      plugins: { legend: { labels: { color: "#D8E2FF" } } },
       scales: {
         x: {
           ticks: {
@@ -469,17 +352,11 @@ function renderDistanceChart(bucketedData) {
             autoSkip: true,
             maxTicksLimit: 6
           },
-          grid: {
-            color: "rgba(255,255,255,0.06)"
-          }
+          grid: { color: "rgba(255,255,255,0.06)" }
         },
         y: {
-          ticks: {
-            color: "#C8D3F7"
-          },
-          grid: {
-            color: "rgba(255,255,255,0.08)"
-          }
+          ticks: { color: "#C8D3F7" },
+          grid: { color: "rgba(255,255,255,0.08)" }
         }
       }
     }
@@ -488,7 +365,6 @@ function renderDistanceChart(bucketedData) {
 
 function updateTitle(view) {
   const title = document.getElementById("chartTitle");
-
   if (view === "hour") {
     title.textContent = "Estimated Sound Levels — Hour View";
   } else if (view === "day") {
@@ -499,32 +375,30 @@ function updateTitle(view) {
 }
 
 async function loadHistory(view = "hour") {
-  await pullLatestReading();
-  const rows = getStoredHistory();
+  try {
+    const rows = await fetchHistoryRows();
+    let bucketedData = [];
 
-  let bucketedData = [];
+    if (view === "hour") {
+      bucketedData = buildMinuteBuckets(rows, 60);
+    } else if (view === "day") {
+      bucketedData = buildHourBuckets(rows, 24);
+    } else {
+      bucketedData = buildDayBuckets(rows, 30);
+    }
 
-  if (view === "hour") {
-    bucketedData = buildMinuteBuckets(rows, 60);
-  } else if (view === "day") {
-    bucketedData = buildHourBuckets(rows, 24);
-  } else {
-    bucketedData = buildDayBuckets(rows, 30);
+    const labels = bucketedData.map((d) => d.label);
+    const values = bucketedData.map((d) => d.sound);
+
+    updateSummary(bucketedData);
+    updateTitle(view);
+
+    const ctx = document.getElementById("historyChart").getContext("2d");
+    if (historyChart) historyChart.destroy();
+    historyChart = new Chart(ctx, getChartConfig(view, labels, values));
+  } catch (error) {
+    console.error("History load error:", error);
   }
-
-  const labels = bucketedData.map((d) => d.label);
-  const values = bucketedData.map((d) => d.sound);
-
-  updateSummary(bucketedData);
-  updateTitle(view);
-
-  const ctx = document.getElementById("historyChart").getContext("2d");
-
-  if (historyChart) {
-    historyChart.destroy();
-  }
-
-  historyChart = new Chart(ctx, getChartConfig(view, labels, values));
 }
 
 function setActiveTab(view) {
@@ -540,6 +414,7 @@ document.querySelectorAll(".tab-button").forEach((button) => {
     loadHistory(currentView);
   });
 });
+
 updatePageHeading();
 loadHistory(currentView);
 setInterval(() => loadHistory(currentView), 5000);
