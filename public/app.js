@@ -16,10 +16,7 @@ function resizeCanvas() {
   canvas.height = rect.height;
 }
 
-function drawGraph(activeSensorId) {
-  const w = canvas.width;
-  const h = canvas.height;
-
+function drawGrid(w, h) {
   ctx.clearRect(0, 0, w, h);
 
   ctx.fillStyle = "rgba(8, 18, 52, 0.98)";
@@ -35,16 +32,17 @@ function drawGraph(activeSensorId) {
     ctx.lineTo(w, y);
     ctx.stroke();
   }
+}
 
-  if (!activeSensorId || soundHistory[activeSensorId].length < 2) return;
+function drawSingleLine(history, color, w, h) {
+  if (!history || history.length < 2) return;
 
-  ctx.strokeStyle = "#9FD0FF";
+  ctx.strokeStyle = color;
   ctx.lineWidth = 3;
   ctx.beginPath();
 
   const minDb = 35;
   const maxDb = 85;
-  const history = soundHistory[activeSensorId];
 
   for (let i = 0; i < history.length; i++) {
     const x = (i / (maxPoints - 1)) * w;
@@ -62,6 +60,17 @@ function drawGraph(activeSensorId) {
   }
 
   ctx.stroke();
+}
+
+function drawGraph() {
+  const w = canvas.width;
+  const h = canvas.height;
+
+  drawGrid(w, h);
+
+  drawSingleLine(soundHistory.sona1, "#9FD0FF", w, h);
+  drawSingleLine(soundHistory.sona2, "#A8FFB0", w, h);
+  drawSingleLine(soundHistory.sona3, "#FFB3D9", w, h);
 }
 
 function setStatus(box, state, fallbackText = "NO DATA") {
@@ -90,7 +99,7 @@ function getSoundState(sound) {
   return "quiet";
 }
 
-function updateCardClasses(card, isActive, isLive) {
+function updateCardClasses(card, isActive) {
   if (!card) return;
 
   card.classList.remove("active-card", "placeholder-card");
@@ -133,7 +142,7 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
     if (distanceEl) distanceEl.textContent = "--";
     setStatus(statusEl, null, "NO DATA");
     updateBadge(badgeEl, false, false);
-    updateCardClasses(cardEl, false, false);
+    updateCardClasses(cardEl, false);
     return;
   }
 
@@ -170,7 +179,7 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
   }
 
   updateBadge(badgeEl, isActive, isLive);
-  updateCardClasses(cardEl, isActive, isLive);
+  updateCardClasses(cardEl, isActive);
 }
 
 function findLoudestSensor(data) {
@@ -209,12 +218,12 @@ async function loadLiveData() {
     updateSensorCard("sona2", data.sona2, activeSensorId === "sona2", 2);
     updateSensorCard("sona3", data.sona3, activeSensorId === "sona3", 3);
 
-    drawGraph(activeSensorId);
+    drawGraph();
   } catch (error) {
     updateSensorCard("sona1", null, false, 1);
     updateSensorCard("sona2", null, false, 2);
     updateSensorCard("sona3", null, false, 3);
-    drawGraph(null);
+    drawGraph();
   }
 }
 
@@ -222,7 +231,7 @@ resizeCanvas();
 
 window.addEventListener("resize", () => {
   resizeCanvas();
-  drawGraph(null);
+  drawGraph();
 });
 
 setInterval(loadLiveData, 1000);
