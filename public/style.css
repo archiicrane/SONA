@@ -866,3 +866,15 @@ body.analysis-scroll .app-shell {
   height: 100% !important;
 }
 
+.sensor1-link {
+  border-color: rgba(159, 208, 255, 0.5);
+}
+
+.sensor2-link {
+  border-color: rgba(168, 255, 176, 0.5);
+}
+
+.sensor3-link {
+  border-color: rgba(255, 179, 217, 0.5);
+}
+

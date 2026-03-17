@@ -2,6 +2,8 @@ let historyChart;
 let stateChart;
 let distanceChart;
 let currentView = "hour";
+const urlParams = new URLSearchParams(window.location.search);
+const selectedSensor = urlParams.get("sensor");
 
 function parseTimestamp(value) {
   const d = new Date(value);
@@ -57,20 +59,26 @@ async function pullLatestReading() {
     if (!response.ok) throw new Error("Failed to fetch live data");
 
     const data = await response.json();
+    let rows = getStoredHistory();
+    if (selectedSensor) {
+      rows = rows.filter((row) => row.sensor === selectedSensor);
+    }
+    const timestamp = new Date().toISOString();
 
-    const sound = Number(data.sound_db);
-    const distance = Number(data.distance_cm);
+    for (const [sensorId, sensorData] of Object.entries(data)) {
+      const sound = Number(sensorData.sound);
+      const distance = Number(sensorData.distance);
 
-    if (Number.isNaN(sound) || Number.isNaN(distance)) return;
+      if (Number.isNaN(sound) || Number.isNaN(distance)) continue;
 
-    const rows = getStoredHistory();
-
-    rows.push({
-      timestamp: new Date().toISOString(),
-      sound: sound,
-      distance_cm: distance,
-      sound_state: data.sound_state || stateFromSound(sound)
-    });
+      rows.push({
+        sensor: sensorId,
+        timestamp,
+        sound,
+        distance_cm: distance,
+        sound_state: stateFromSound(sound)
+      });
+    }
 
     saveStoredHistory(rows);
   } catch (err) {
@@ -78,7 +86,20 @@ async function pullLatestReading() {
   }
 }
 
+function updatePageHeading() {
+  const titleEl = document.getElementById("analysisPageTitle");
+  if (!titleEl) return;
 
+  if (selectedSensor === "sona1") {
+    titleEl.textContent = "Sensor 1 Analytics";
+  } else if (selectedSensor === "sona2") {
+    titleEl.textContent = "Sensor 2 Analytics";
+  } else if (selectedSensor === "sona3") {
+    titleEl.textContent = "Sensor 3 Analytics";
+  } else {
+    titleEl.textContent = "Acoustic Monitoring Analytics";
+  }
+}
 
 function buildMinuteBuckets(rows, minutesBack = 60) {
   const now = new Date();
@@ -519,6 +540,6 @@ document.querySelectorAll(".tab-button").forEach((button) => {
     loadHistory(currentView);
   });
 });
-
+updatePageHeading();
 loadHistory(currentView);
 setInterval(() => loadHistory(currentView), 5000);

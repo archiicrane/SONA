@@ -4,11 +4,21 @@ const soundHistory = {
   sona3: []
 };
 
+const sensorColors = {
+  sona1: "#9FD0FF",
+  sona2: "#A8FFB0",
+  sona3: "#FFB3D9"
+};
+
 const maxPoints = 120;
 const sensorIds = ["sona1", "sona2", "sona3"];
 
 const canvas = document.getElementById("waveCanvas");
 const ctx = canvas.getContext("2d");
+
+function goToSensor(sensorId) {
+  window.location.href = `/history.html?sensor=${sensorId}`;
+}
 
 function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
