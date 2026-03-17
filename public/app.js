@@ -99,13 +99,15 @@ function getSoundState(sound) {
   return "quiet";
 }
 
-function updateCardClasses(card, isActive) {
+function updateCardClasses(card, isActive, isLive) {
   if (!card) return;
 
-  card.classList.remove("active-card", "placeholder-card");
+  card.classList.remove("active-card", "live-card", "placeholder-card");
 
   if (isActive) {
     card.classList.add("active-card");
+  } else if (isLive) {
+    card.classList.add("live-card");
   } else {
     card.classList.add("placeholder-card");
   }
