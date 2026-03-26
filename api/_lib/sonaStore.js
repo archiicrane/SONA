@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const querystring = require("querystring");
 
 const SENSOR_IDS = ["sona1", "sona2", "sona3"];
 const MAX_RECORDS = 5000;
@@ -40,6 +41,7 @@ function ensureDataFile() {
     if (!fs.existsSync(DATA_FILE)) {
       fs.writeFileSync(DATA_FILE, "[]", "utf8");
     }
+    console.log(`[SONA] Storage ready (${runningOnVercel ? "vercel-tmp" : "local-file"}): ${DATA_FILE}`);
     return true;
   } catch (error) {
     console.warn("[SONA] data.json not writable, falling back to in-memory history:", error.message);
@@ -129,25 +131,53 @@ function normalizeSensorRecord(sensor, payload, timestamp) {
 }
 
 function normalizeIncomingPayload(body) {
+  const payload = coerceRequestBody(body);
   const timestamp = new Date().toISOString();
   const entries = [];
 
-  if (body && typeof body === "object" && body.sensor != null) {
-    const single = normalizeSensorRecord(body.sensor, body, timestamp);
+  if (payload && typeof payload === "object" && payload.sensor != null) {
+    const single = normalizeSensorRecord(payload.sensor, payload, timestamp);
     if (single) {
       entries.push(single);
     } else {
-      console.warn("[SONA] Ignored payload with invalid sensor id:", body.sensor);
+      console.warn("[SONA] Ignored payload with invalid sensor id:", payload.sensor);
     }
     return entries;
   }
 
   for (const sensor of SENSOR_IDS) {
-    const entry = normalizeSensorRecord(sensor, body && body[sensor], timestamp);
+    const entry = normalizeSensorRecord(sensor, payload && payload[sensor], timestamp);
     if (entry) entries.push(entry);
   }
 
   return entries;
+}
+
+function coerceRequestBody(body) {
+  if (body == null) return {};
+
+  if (Buffer.isBuffer(body)) {
+    return coerceRequestBody(body.toString("utf8"));
+  }
+
+  if (typeof body === "string") {
+    const trimmed = body.trim();
+    if (!trimmed) return {};
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // Accept x-www-form-urlencoded style fallbacks from microcontroller posts.
+      const parsed = querystring.parse(trimmed);
+      return typeof parsed === "object" && parsed ? parsed : {};
+    }
+  }
+
+  if (typeof body === "object") {
+    return body;
+  }
+
+  return {};
 }
 
 function updateLatestFromEntries(entries) {
@@ -165,8 +195,10 @@ function getLatest() {
 }
 
 function savePayload(body) {
+  console.log("[SONA] Incoming payload received for save");
   const entries = normalizeIncomingPayload(body);
   if (!entries.length) {
+    console.warn("[SONA] Payload parse failed: no valid sensor entries");
     return { ok: false, error: "No valid sensor payload found" };
   }
 
@@ -175,6 +207,8 @@ function savePayload(body) {
   const history = readHistory();
   history.push(...entries);
   writeHistory(history);
+
+  console.log(`[SONA] Persisted ${entries.length} reading(s). Total cached rows: ${history.length}`);
 
   return { ok: true, entries };
 }

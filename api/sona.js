@@ -1,8 +1,23 @@
 const store = require("./_lib/sonaStore");
 
+function resolveRoute(req) {
+  const fromQuery = req.query && req.query.route;
+  if (typeof fromQuery === "string" && fromQuery) {
+    return fromQuery;
+  }
+
+  const pathname = String(req.url || "").split("?")[0] || "";
+  if (pathname.endsWith("/arduino")) return "arduino";
+  if (pathname.endsWith("/history")) return "history";
+  if (pathname.endsWith("/clear")) return "clear";
+
+  return null;
+}
+
 module.exports = function sonaHandler(req, res) {
   try {
-    const route = req.query && req.query.route;
+    const route = resolveRoute(req);
+    console.log(`[SONA] API request ${req.method} ${req.url} -> route=${route || "unknown"}`);
 
     if (route === "arduino") {
       if (req.method === "GET") {
