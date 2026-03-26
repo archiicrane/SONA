@@ -2,23 +2,6 @@ const fs = require("fs");
 const path = require("path");
 
 const SENSOR_IDS = ["sona1", "sona2", "sona3"];
-const SENSOR_ALIASES = {
-  sona1: "sona1",
-  sona2: "sona2",
-  sona3: "sona3",
-  "sona_1": "sona1",
-  "sona_2": "sona2",
-  "sona_3": "sona3",
-  sensor1: "sona1",
-  sensor2: "sona2",
-  sensor3: "sona3",
-  "sensor_1": "sona1",
-  "sensor_2": "sona2",
-  "sensor_3": "sona3",
-  "1": "sona1",
-  "2": "sona2",
-  "3": "sona3"
-};
 const MAX_RECORDS = 5000;
 const DATA_FILE = path.join(process.cwd(), "data.json");
 
@@ -46,7 +29,7 @@ function soundToState(sound) {
 
 function canonicalSensorId(sensorId) {
   const key = String(sensorId || "").trim().toLowerCase();
-  return SENSOR_ALIASES[key] || null;
+  return SENSOR_IDS.includes(key) ? key : null;
 }
 
 function ensureDataFile() {
@@ -148,27 +131,16 @@ function normalizeIncomingPayload(body) {
 
   if (body && typeof body === "object" && body.sensor != null) {
     const single = normalizeSensorRecord(body.sensor, body, timestamp);
-    if (single) entries.push(single);
+    if (single) {
+      entries.push(single);
+    } else {
+      console.warn("[SONA] Ignored payload with invalid sensor id:", body.sensor);
+    }
     return entries;
   }
 
-  const bulkKeyToSensor = [
-    ["sona1", "sona1"],
-    ["sona2", "sona2"],
-    ["sona3", "sona3"],
-    ["sona_1", "sona1"],
-    ["sona_2", "sona2"],
-    ["sona_3", "sona3"],
-    ["sensor1", "sona1"],
-    ["sensor2", "sona2"],
-    ["sensor3", "sona3"],
-    ["sensor_1", "sona1"],
-    ["sensor_2", "sona2"],
-    ["sensor_3", "sona3"]
-  ];
-
-  for (const [payloadKey, sensor] of bulkKeyToSensor) {
-    const entry = normalizeSensorRecord(sensor, body && body[payloadKey], timestamp);
+  for (const sensor of SENSOR_IDS) {
+    const entry = normalizeSensorRecord(sensor, body && body[sensor], timestamp);
     if (entry) entries.push(entry);
   }
 
