@@ -3,7 +3,10 @@ const path = require("path");
 
 const SENSOR_IDS = ["sona1", "sona2", "sona3"];
 const MAX_RECORDS = 5000;
-const DATA_FILE = path.join(process.cwd(), "data.json");
+const runningOnVercel = Boolean(process.env.VERCEL);
+const DATA_FILE = runningOnVercel
+  ? path.join("/tmp", "sona-data.json")
+  : path.join(process.cwd(), "data.json");
 
 let historyMemory = [];
 let latestData = createEmptyLatestData();
@@ -44,8 +47,7 @@ function ensureDataFile() {
   }
 }
 
-const runningOnVercel = Boolean(process.env.VERCEL);
-const canUseFileStorage = !runningOnVercel && ensureDataFile();
+const canUseFileStorage = ensureDataFile();
 
 function coerceHistoryRow(row) {
   if (!row || typeof row !== "object") return null;
