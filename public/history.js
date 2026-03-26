@@ -7,6 +7,12 @@ const validSensors = new Set(["sona1", "sona2", "sona3"]);
 const selectedSensorParam = urlParams.get("sensor");
 const selectedSensor = validSensors.has(selectedSensorParam) ? selectedSensorParam : null;
 
+function syncViewportVars() {
+  const root = document.documentElement;
+  root.style.setProperty("--app-vh", `${window.innerHeight}px`);
+  root.style.setProperty("--app-vw", `${window.innerWidth}px`);
+}
+
 function parseTimestamp(value) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
@@ -407,5 +413,12 @@ document.querySelectorAll(".tab-button").forEach((button) => {
 });
 
 updatePageHeading();
+syncViewportVars();
 loadHistory(currentView);
 setInterval(() => loadHistory(currentView), 5000);
+window.addEventListener("resize", () => {
+  syncViewportVars();
+  if (historyChart) historyChart.resize();
+  if (stateChart) stateChart.resize();
+  if (distanceChart) distanceChart.resize();
+});

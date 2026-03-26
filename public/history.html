@@ -41,7 +41,10 @@
       <div class="history-grid">
         <div class="card history-chart-card">
           <div class="label" id="chartTitle">Estimated Sound Levels — Hour View</div>
-          <canvas id="historyChart"></canvas>
+          <!-- Chart wrapper keeps Chart.js canvas contained and responsive. -->
+          <div class="chart-canvas-wrap primary-chart-wrap">
+            <canvas id="historyChart"></canvas>
+          </div>
         </div>
 
         <div class="history-summary-grid">
@@ -70,12 +73,16 @@
       <div class="secondary-analysis-grid">
         <div class="card mini-chart-card">
           <div class="label">Sound State Distribution</div>
-          <canvas id="stateChart"></canvas>
+          <div class="chart-canvas-wrap secondary-chart-wrap">
+            <canvas id="stateChart"></canvas>
+          </div>
         </div>
 
         <div class="card mini-chart-card">
           <div class="label">Distance Trend</div>
-          <canvas id="distanceChart"></canvas>
+          <div class="chart-canvas-wrap secondary-chart-wrap">
+            <canvas id="distanceChart"></canvas>
+          </div>
         </div>
 
         <div class="card heatmap-card">

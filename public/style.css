@@ -7,6 +7,13 @@ body {
   height: 100%;
 }
 
+:root {
+  --app-vh: 100vh;
+  --app-vw: 100vw;
+  --analysis-primary-h: 56vh;
+  --analysis-secondary-h: 30vh;
+}
+
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -361,6 +368,13 @@ body {
   flex-wrap: wrap;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 #historyChart {
   width: 100%;
   height: 500px !important;
@@ -654,17 +668,21 @@ body.analysis-scroll {
 }
 
 body.analysis-scroll .app-shell {
-  height: calc(100vh - 28px);
+  height: calc(var(--app-vh, 100vh) - 28px);
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+body.analysis-scroll .page-card.analysis-page {
+  overflow: hidden;
 }
 
 .analysis-page {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1.25fr) minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -682,6 +700,8 @@ body.analysis-scroll .app-shell {
   gap: 14px;
   align-items: stretch;
   min-height: 0;
+  height: var(--analysis-primary-h);
+  overflow: hidden;
 }
 
 .history-chart-card {
@@ -696,10 +716,17 @@ body.analysis-scroll .app-shell {
   min-height: 0;
 }
 
+/* Override fixed chart height on analysis pages so charts can scale with viewport. */
+body.analysis-scroll #historyChart {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
 .history-summary-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
+  min-height: 0;
 }
 
 .summary-card {
@@ -708,10 +735,11 @@ body.analysis-scroll .app-shell {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  overflow: hidden;
 }
 
 .summary-value {
-  font-size: 26px;
+  font-size: clamp(24px, 2.1vh, 30px);
 }
 
 .secondary-analysis-grid {
@@ -719,11 +747,14 @@ body.analysis-scroll .app-shell {
   grid-template-columns: 1fr 1fr 1.1fr;
   gap: 14px;
   align-items: stretch;
+  min-height: 0;
+  height: var(--analysis-secondary-h);
+  overflow: hidden;
 }
 
 .mini-chart-card,
 .heatmap-card {
-  height: 240px;
+  height: clamp(220px, 27vh, 320px);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -747,6 +778,7 @@ body.analysis-scroll .app-shell {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: hidden;
 }
 
 .heatmap-room {
@@ -876,5 +908,286 @@ body.analysis-scroll .app-shell {
 
 .sensor3-link {
   border-color: rgba(255, 179, 217, 0.5);
+}
+
+@media (max-width: 980px) {
+  .history-grid {
+    grid-template-columns: 1fr;
+    height: var(--analysis-primary-h);
+  }
+
+  .history-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .secondary-analysis-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .heatmap-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .history-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --------------------
+   Analysis Page Responsive Fixes (minimal)
+   Root cause of overlap was conflicting/fixed chart heights across multiple rules,
+   plus early desktop breakpoint stacking. This block keeps the same layout and only
+   scales chart/card dimensions down slightly at narrower desktop widths.
+-------------------- */
+body.analysis-scroll {
+  overflow-x: hidden;
+}
+
+body.analysis-scroll .app-shell {
+  width: 100%;
+  min-height: calc(100dvh - 28px);
+  height: calc(100dvh - 28px);
+}
+
+body.analysis-scroll .page-card.analysis-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 12px;
+}
+
+body.analysis-scroll .analysis-top-bar {
+  align-items: flex-start;
+}
+
+body.analysis-scroll .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+body.analysis-scroll .history-grid {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.95fr);
+  gap: 14px;
+  overflow: hidden;
+}
+
+body.analysis-scroll .secondary-analysis-grid {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  overflow: hidden;
+}
+
+body.analysis-scroll .history-chart-card,
+body.analysis-scroll .mini-chart-card,
+body.analysis-scroll .heatmap-card,
+body.analysis-scroll .summary-card {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.analysis-scroll .history-chart-card,
+body.analysis-scroll .mini-chart-card,
+body.analysis-scroll .heatmap-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+body.analysis-scroll .history-summary-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+body.analysis-scroll .summary-card {
+  padding: 12px;
+}
+
+body.analysis-scroll .summary-value {
+  font-size: clamp(22px, 1.9vw, 32px);
+}
+
+body.analysis-scroll .chart-canvas-wrap {
+  width: 100%;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Previous large min-heights here forced row pressure and caused overlap at narrower desktop widths. */
+body.analysis-scroll .primary-chart-wrap {
+  min-height: clamp(220px, 32vh, 420px);
+}
+
+body.analysis-scroll .secondary-chart-wrap {
+  min-height: clamp(150px, 20vh, 250px);
+}
+
+body.analysis-scroll .heatmap-placeholder,
+body.analysis-scroll .heatmap-room {
+  min-height: 0;
+}
+
+/* Keep Chart.js canvases constrained to card wrappers. */
+body.analysis-scroll #historyChart,
+body.analysis-scroll #stateChart,
+body.analysis-scroll #distanceChart {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  max-width: 100%;
+}
+
+/* Full desktop */
+@media (max-width: 1500px) {
+  body.analysis-scroll .page-card.analysis-page {
+    gap: 11px;
+  }
+
+  body.analysis-scroll .history-grid,
+  body.analysis-scroll .secondary-analysis-grid {
+    gap: 12px;
+  }
+
+  body.analysis-scroll .primary-chart-wrap {
+    min-height: clamp(210px, 30vh, 390px);
+  }
+
+  body.analysis-scroll .secondary-chart-wrap {
+    min-height: clamp(145px, 18.5vh, 230px);
+  }
+}
+
+/* Narrow desktop */
+@media (max-width: 1360px) {
+  body.analysis-scroll .page-card.analysis-page {
+    gap: 10px;
+  }
+
+  body.analysis-scroll .history-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(235px, 1fr);
+    gap: 10px;
+  }
+
+  body.analysis-scroll .secondary-analysis-grid {
+    gap: 10px;
+  }
+
+  body.analysis-scroll .summary-card {
+    padding: 10px;
+  }
+
+  body.analysis-scroll .summary-value {
+    font-size: clamp(20px, 1.7vw, 28px);
+  }
+
+  body.analysis-scroll .primary-chart-wrap {
+    min-height: clamp(195px, 27vh, 340px);
+  }
+
+  body.analysis-scroll .secondary-chart-wrap {
+    min-height: clamp(135px, 16.5vh, 210px);
+  }
+}
+
+/* Small desktop (still desktop layout, no early stacking) */
+@media (max-width: 1200px) {
+  body.analysis-scroll .page-card.analysis-page {
+    gap: 9px;
+    padding: 14px;
+  }
+
+  body.analysis-scroll .analysis-page-title {
+    font-size: clamp(28px, 2.3vw, 34px);
+  }
+
+  body.analysis-scroll .history-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(220px, 1fr);
+    gap: 9px;
+  }
+
+  body.analysis-scroll .secondary-analysis-grid {
+    gap: 9px;
+  }
+
+  body.analysis-scroll .primary-chart-wrap {
+    min-height: clamp(180px, 25vh, 300px);
+  }
+
+  body.analysis-scroll .secondary-chart-wrap {
+    min-height: clamp(125px, 15vh, 185px);
+  }
+}
+
+/* Tablet and below: stack when truly needed. */
+@media (max-width: 1024px) {
+  body.analysis-scroll {
+    overflow-y: auto;
+  }
+
+  body.analysis-scroll .app-shell {
+    height: auto;
+    min-height: calc(100dvh - 28px);
+  }
+
+  body.analysis-scroll .page-card.analysis-page {
+    grid-template-rows: auto auto auto auto;
+    overflow: visible;
+  }
+
+  body.analysis-scroll .history-grid {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  body.analysis-scroll .history-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.analysis-scroll .secondary-analysis-grid {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 700px) {
+  body.analysis-scroll {
+    padding: 10px;
+  }
+
+  body.analysis-scroll .app-shell {
+    min-height: calc(100dvh - 20px);
+    height: auto;
+    gap: 8px;
+  }
+
+  body.analysis-scroll .page-card.analysis-page {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  body.analysis-scroll .button-row {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  body.analysis-scroll .history-summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
