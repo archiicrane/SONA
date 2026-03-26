@@ -44,7 +44,8 @@ function ensureDataFile() {
   }
 }
 
-const canUseFileStorage = ensureDataFile();
+const runningOnVercel = Boolean(process.env.VERCEL);
+const canUseFileStorage = !runningOnVercel && ensureDataFile();
 
 function coerceHistoryRow(row) {
   if (!row || typeof row !== "object") return null;

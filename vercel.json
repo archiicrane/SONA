@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/api/arduino", "destination": "/api/sona?route=arduino" },
+    { "source": "/api/history", "destination": "/api/sona?route=history" },
+    { "source": "/api/clear", "destination": "/api/sona?route=clear" }
+  ]
+}
