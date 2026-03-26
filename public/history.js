@@ -3,7 +3,9 @@ let stateChart;
 let distanceChart;
 let currentView = "hour";
 const urlParams = new URLSearchParams(window.location.search);
-const selectedSensor = urlParams.get("sensor");
+const validSensors = new Set(["sona1", "sona2", "sona3"]);
+const selectedSensorParam = urlParams.get("sensor");
+const selectedSensor = validSensors.has(selectedSensorParam) ? selectedSensorParam : null;
 
 function parseTimestamp(value) {
   const d = new Date(value);
@@ -43,15 +45,18 @@ function stateFromSound(db) {
 
 async function fetchHistoryRows() {
   const query = selectedSensor
-    ? `/api/history?sensor=${encodeURIComponent(selectedSensor)}&limit=5000`
-    : "/api/history?limit=5000";
+    ? `/api/history?sensor=${encodeURIComponent(selectedSensor)}&limit=5000&order=asc`
+    : "/api/history?limit=5000&order=asc";
 
   const response = await fetch(query);
   if (!response.ok) {
-    throw new Error("Failed to fetch history");
+    throw new Error(`Failed to fetch history (${response.status})`);
   }
 
-  return response.json();
+  const payload = await response.json();
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.rows)) return payload.rows;
+  return [];
 }
 
 function updatePageHeading() {
@@ -69,45 +74,14 @@ function updatePageHeading() {
   }
 }
 
-function buildMinuteBuckets(rows, minutesBack = 60) {
-  const now = new Date();
-  const start = new Date(now.getTime() - minutesBack * 60 * 1000);
-  const bucketMap = new Map();
-
-  for (let i = 0; i < minutesBack; i++) {
-    const bucketDate = new Date(start.getTime() + i * 60 * 1000);
-    bucketDate.setSeconds(0, 0);
-    const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}-${bucketDate.getMinutes()}`;
-    bucketMap.set(key, { date: bucketDate, sounds: [], distances: [] });
-  }
-
-  for (const row of rows) {
-    const date = parseTimestamp(row.timestamp);
-    if (!date || date < start || date > now) continue;
-
-    const bucketDate = new Date(date);
-    bucketDate.setSeconds(0, 0);
-    const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}-${bucketDate.getMinutes()}`;
-    const bucket = bucketMap.get(key);
-    if (!bucket) continue;
-
-    const sound = Number(row.sound);
-    const distance = Number(row.distance_cm);
-
-    if (!Number.isNaN(sound)) bucket.sounds.push(sound);
-    if (!Number.isNaN(distance) && distance >= 0) bucket.distances.push(distance);
-  }
-
-  return Array.from(bucketMap.values()).map((bucket) => ({
-    label: formatTimeLabel(bucket.date),
-    sound: average(bucket.sounds),
-    distance: average(bucket.distances)
-  }));
-}
-
 function buildHourBuckets(rows, hoursBack = 24) {
   const now = new Date();
-  const start = new Date(now.getTime() - hoursBack * 60 * 60 * 1000);
+  const currentHourStart = new Date(now);
+  currentHourStart.setMinutes(0, 0, 0);
+
+  // Use only completed hours so values roll forward once per hour.
+  const endExclusive = currentHourStart;
+  const start = new Date(endExclusive.getTime() - hoursBack * 60 * 60 * 1000);
   const bucketMap = new Map();
 
   for (let i = 0; i < hoursBack; i++) {
@@ -119,7 +93,7 @@ function buildHourBuckets(rows, hoursBack = 24) {
 
   for (const row of rows) {
     const date = parseTimestamp(row.timestamp);
-    if (!date || date < start || date > now) continue;
+    if (!date || date < start || date >= endExclusive) continue;
 
     const bucketDate = new Date(date);
     bucketDate.setMinutes(0, 0, 0);
@@ -143,7 +117,12 @@ function buildHourBuckets(rows, hoursBack = 24) {
 
 function buildDayBuckets(rows, daysBack = 30) {
   const now = new Date();
-  const start = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  // Include today in day/month views so users can track intra-day movement.
+  const start = new Date(todayStart.getTime() - (daysBack - 1) * 24 * 60 * 60 * 1000);
+  const endInclusive = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
   const bucketMap = new Map();
 
   for (let i = 0; i < daysBack; i++) {
@@ -155,7 +134,7 @@ function buildDayBuckets(rows, daysBack = 30) {
 
   for (const row of rows) {
     const date = parseTimestamp(row.timestamp);
-    if (!date || date < start || date > now) continue;
+    if (!date || date < start || date > endInclusive) continue;
 
     const bucketDate = new Date(date);
     bucketDate.setHours(0, 0, 0, 0);
@@ -191,11 +170,13 @@ function updateSummary(bucketedData) {
   }
 
   let dominantState = "--";
-  let bestCount = -1;
-  for (const [state, count] of Object.entries(stateCounts)) {
-    if (count > bestCount) {
-      dominantState = state;
-      bestCount = count;
+  if (validSound.length) {
+    let bestCount = -1;
+    for (const [state, count] of Object.entries(stateCounts)) {
+      if (count > bestCount) {
+        dominantState = state;
+        bestCount = count;
+      }
     }
   }
 
@@ -238,7 +219,7 @@ function getChartConfig(view, labels, values) {
       data: {
         labels,
         datasets: [{
-          label: "Hourly Avg Estimated dB",
+          label: "Daily Avg Estimated dB",
           data: values,
           borderWidth: 1,
           borderRadius: 8,
@@ -256,7 +237,7 @@ function getChartConfig(view, labels, values) {
       data: {
         labels,
         datasets: [{
-          label: "Daily Avg Estimated dB",
+          label: "Daily Avg Estimated dB (Month)",
           data: values,
           borderColor: "#9FD0FF",
           backgroundColor: "rgba(159, 208, 255, 0.18)",
@@ -275,7 +256,7 @@ function getChartConfig(view, labels, values) {
     data: {
       labels,
       datasets: [{
-        label: "Minute Avg Estimated dB",
+        label: "Hourly Avg Estimated dB",
         data: values,
         borderColor: "#9FD0FF",
         backgroundColor: "rgba(159, 208, 255, 0.18)",
@@ -366,11 +347,11 @@ function renderDistanceChart(bucketedData) {
 function updateTitle(view) {
   const title = document.getElementById("chartTitle");
   if (view === "hour") {
-    title.textContent = "Estimated Sound Levels — Hour View";
+    title.textContent = "Estimated Sound Levels — Hourly View (Last 24 Hours)";
   } else if (view === "day") {
-    title.textContent = "Estimated Sound Levels — Day View";
+    title.textContent = "Estimated Sound Levels — Daily Average View (Last 7 Days)";
   } else {
-    title.textContent = "Estimated Sound Levels — Month View";
+    title.textContent = "Estimated Sound Levels — Daily Trend Across Month";
   }
 }
 
@@ -380,9 +361,9 @@ async function loadHistory(view = "hour") {
     let bucketedData = [];
 
     if (view === "hour") {
-      bucketedData = buildMinuteBuckets(rows, 60);
-    } else if (view === "day") {
       bucketedData = buildHourBuckets(rows, 24);
+    } else if (view === "day") {
+      bucketedData = buildDayBuckets(rows, 7);
     } else {
       bucketedData = buildDayBuckets(rows, 30);
     }
@@ -397,7 +378,17 @@ async function loadHistory(view = "hour") {
     if (historyChart) historyChart.destroy();
     historyChart = new Chart(ctx, getChartConfig(view, labels, values));
   } catch (error) {
-    console.error("History load error:", error);
+    console.error("[SONA] History load error:", error);
+
+    if (historyChart) {
+      historyChart.destroy();
+      historyChart = null;
+    }
+
+    document.getElementById("avgSound").textContent = "--";
+    document.getElementById("maxSound").textContent = "--";
+    document.getElementById("avgDistance").textContent = "--";
+    document.getElementById("dominantState").textContent = "--";
   }
 }
 

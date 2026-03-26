@@ -221,9 +221,17 @@ function findLoudestSensor(data) {
 async function loadLiveData() {
   try {
     const response = await fetch("/api/arduino");
-    if (!response.ok) throw new Error("Live fetch failed");
+    if (!response.ok) {
+      throw new Error(`Live fetch failed with status ${response.status}`);
+    }
 
-    const data = await response.json();
+    const payload = await response.json();
+    const data = payload && payload.latest ? payload.latest : payload;
+
+    if (!data || typeof data !== "object") {
+      throw new Error("Live response has invalid shape");
+    }
+
     const activeSensorId = findLoudestSensor(data);
 
     updateSensorCard("sona1", data.sona1, activeSensorId === "sona1", 1);
@@ -232,6 +240,7 @@ async function loadLiveData() {
 
     drawGraph();
   } catch (error) {
+    console.error("[SONA] Failed to load live data:", error);
     updateSensorCard("sona1", null, false, 1);
     updateSensorCard("sona2", null, false, 2);
     updateSensorCard("sona3", null, false, 3);
