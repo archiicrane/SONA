@@ -1134,6 +1134,147 @@ body.analysis-scroll #distanceChart {
   }
 }
 
+/* Height-aware desktop compaction for rectangular screens.
+   Root issue: width-only breakpoints left tall chart/card minimums on short viewports. */
+@media (max-height: 900px) and (min-width: 1025px) {
+  body.analysis-scroll .app-shell {
+    gap: 10px;
+  }
+
+  body.analysis-scroll .page-card.analysis-page {
+    padding: 15px;
+    gap: 10px;
+  }
+
+  body.analysis-scroll .analysis-page-title {
+    font-size: clamp(30px, 2.1vw, 36px);
+  }
+
+  body.analysis-scroll .history-grid,
+  body.analysis-scroll .secondary-analysis-grid {
+    gap: 10px;
+  }
+
+  body.analysis-scroll .summary-card {
+    padding: 10px;
+  }
+
+  body.analysis-scroll .summary-value {
+    font-size: clamp(20px, 1.7vw, 28px);
+  }
+
+  body.analysis-scroll .primary-chart-wrap {
+    min-height: clamp(185px, 27vh, 320px);
+  }
+
+  body.analysis-scroll .secondary-chart-wrap {
+    min-height: clamp(128px, 16vh, 190px);
+  }
+}
+
+@media (max-height: 820px) and (min-width: 1025px) {
+  body.analysis-scroll {
+    padding: 10px;
+  }
+
+  body.analysis-scroll .app-shell {
+    min-height: calc(100dvh - 20px);
+    height: calc(100dvh - 20px);
+    gap: 8px;
+  }
+
+  body.analysis-scroll .sona-header {
+    padding: 2px 6px 0 6px;
+  }
+
+  body.analysis-scroll .sona-title {
+    font-size: clamp(30px, 2.4vw, 38px);
+  }
+
+  body.analysis-scroll .page-card.analysis-page {
+    padding: 13px;
+    gap: 8px;
+    grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 0.82fr);
+  }
+
+  body.analysis-scroll .history-tabs .tab-button,
+  body.analysis-scroll .button-row .compact-button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  body.analysis-scroll .history-grid,
+  body.analysis-scroll .secondary-analysis-grid,
+  body.analysis-scroll .history-summary-grid {
+    gap: 8px;
+  }
+
+  body.analysis-scroll .summary-card {
+    padding: 9px;
+  }
+
+  body.analysis-scroll .summary-value {
+    font-size: clamp(18px, 1.45vw, 24px);
+  }
+
+  body.analysis-scroll .primary-chart-wrap {
+    min-height: clamp(170px, 24vh, 280px);
+  }
+
+  body.analysis-scroll .secondary-chart-wrap {
+    min-height: clamp(118px, 14vh, 165px);
+  }
+}
+
+@media (max-height: 760px) and (min-width: 1025px) {
+  body.analysis-scroll .app-shell {
+    gap: 7px;
+  }
+
+  body.analysis-scroll .analysis-page-label {
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+
+  body.analysis-scroll .analysis-page-title {
+    font-size: clamp(24px, 1.9vw, 30px);
+    line-height: 1;
+  }
+
+  body.analysis-scroll .page-card.analysis-page {
+    padding: 12px;
+    gap: 7px;
+    grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 0.78fr);
+  }
+
+  body.analysis-scroll .history-grid,
+  body.analysis-scroll .secondary-analysis-grid,
+  body.analysis-scroll .history-summary-grid {
+    gap: 7px;
+  }
+
+  body.analysis-scroll .summary-card {
+    padding: 8px;
+  }
+
+  body.analysis-scroll .summary-value {
+    font-size: clamp(16px, 1.25vw, 21px);
+    margin-top: 2px;
+  }
+
+  body.analysis-scroll .primary-chart-wrap {
+    min-height: clamp(152px, 21vh, 235px);
+  }
+
+  body.analysis-scroll .secondary-chart-wrap {
+    min-height: clamp(104px, 12vh, 145px);
+  }
+
+  body.analysis-scroll .heatmap-note {
+    font-size: 11px;
+  }
+}
+
 /* Tablet and below: stack when truly needed. */
 @media (max-width: 1024px) {
   body.analysis-scroll {
