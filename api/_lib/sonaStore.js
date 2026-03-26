@@ -2,6 +2,23 @@ const fs = require("fs");
 const path = require("path");
 
 const SENSOR_IDS = ["sona1", "sona2", "sona3"];
+const SENSOR_ALIASES = {
+  sona1: "sona1",
+  sona2: "sona2",
+  sona3: "sona3",
+  "sona_1": "sona1",
+  "sona_2": "sona2",
+  "sona_3": "sona3",
+  sensor1: "sona1",
+  sensor2: "sona2",
+  sensor3: "sona3",
+  "sensor_1": "sona1",
+  "sensor_2": "sona2",
+  "sensor_3": "sona3",
+  "1": "sona1",
+  "2": "sona2",
+  "3": "sona3"
+};
 const MAX_RECORDS = 5000;
 const DATA_FILE = path.join(process.cwd(), "data.json");
 
@@ -27,6 +44,11 @@ function soundToState(sound) {
   return "quiet";
 }
 
+function canonicalSensorId(sensorId) {
+  const key = String(sensorId || "").trim().toLowerCase();
+  return SENSOR_ALIASES[key] || null;
+}
+
 function ensureDataFile() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
@@ -44,7 +66,7 @@ const canUseFileStorage = ensureDataFile();
 function coerceHistoryRow(row) {
   if (!row || typeof row !== "object") return null;
 
-  const sensor = SENSOR_IDS.includes(row.sensor) ? row.sensor : "sona1";
+  const sensor = canonicalSensorId(row.sensor) || "sona1";
   const sound = toNumber(row.sound);
   const distance = toNumber(row.distance_cm ?? row.distance);
 
@@ -100,7 +122,8 @@ function writeHistory(rows) {
 }
 
 function normalizeSensorRecord(sensor, payload, timestamp) {
-  if (!SENSOR_IDS.includes(sensor)) return null;
+  const sensorId = canonicalSensorId(sensor);
+  if (!sensorId) return null;
   if (!payload || typeof payload !== "object") return null;
 
   const sound = toNumber(payload.sound);
@@ -111,7 +134,7 @@ function normalizeSensorRecord(sensor, payload, timestamp) {
   const safeSound = sound ?? 0;
 
   return {
-    sensor,
+    sensor: sensorId,
     timestamp,
     sound: safeSound,
     distance_cm: distance ?? 0,
@@ -123,14 +146,29 @@ function normalizeIncomingPayload(body) {
   const timestamp = new Date().toISOString();
   const entries = [];
 
-  if (body && typeof body === "object" && typeof body.sensor === "string") {
+  if (body && typeof body === "object" && body.sensor != null) {
     const single = normalizeSensorRecord(body.sensor, body, timestamp);
     if (single) entries.push(single);
     return entries;
   }
 
-  for (const sensor of SENSOR_IDS) {
-    const entry = normalizeSensorRecord(sensor, body && body[sensor], timestamp);
+  const bulkKeyToSensor = [
+    ["sona1", "sona1"],
+    ["sona2", "sona2"],
+    ["sona3", "sona3"],
+    ["sona_1", "sona1"],
+    ["sona_2", "sona2"],
+    ["sona_3", "sona3"],
+    ["sensor1", "sona1"],
+    ["sensor2", "sona2"],
+    ["sensor3", "sona3"],
+    ["sensor_1", "sona1"],
+    ["sensor_2", "sona2"],
+    ["sensor_3", "sona3"]
+  ];
+
+  for (const [payloadKey, sensor] of bulkKeyToSensor) {
+    const entry = normalizeSensorRecord(sensor, body && body[payloadKey], timestamp);
     if (entry) entries.push(entry);
   }
 
