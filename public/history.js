@@ -6,6 +6,12 @@ const urlParams = new URLSearchParams(window.location.search);
 const validSensors = new Set(["sona1", "sona2", "sona3"]);
 const selectedSensorParam = urlParams.get("sensor");
 const selectedSensor = validSensors.has(selectedSensorParam) ? selectedSensorParam : null;
+const sensorIds = ["sona1", "sona2", "sona3"];
+const sensorSeriesMeta = {
+  sona1: { label: "Sensor 1", color: "#9FD0FF", fill: "rgba(159, 208, 255, 0.16)" },
+  sona2: { label: "Sensor 2", color: "#A8FFB0", fill: "rgba(168, 255, 176, 0.16)" },
+  sona3: { label: "Sensor 3", color: "#FFB3D9", fill: "rgba(255, 179, 217, 0.16)" }
+};
 
 function syncViewportVars() {
   const root = document.documentElement;
@@ -94,7 +100,12 @@ function buildHourBuckets(rows, hoursBack = 24) {
     const bucketDate = new Date(start.getTime() + i * 60 * 60 * 1000);
     bucketDate.setMinutes(0, 0, 0);
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}`;
-    bucketMap.set(key, { date: bucketDate, sounds: [], distances: [] });
+    bucketMap.set(key, {
+      date: bucketDate,
+      sounds: [],
+      distances: [],
+      sensorSounds: { sona1: [], sona2: [], sona3: [] }
+    });
   }
 
   for (const row of rows) {
@@ -110,14 +121,24 @@ function buildHourBuckets(rows, hoursBack = 24) {
     const sound = Number(row.sound);
     const distance = Number(row.distance_cm);
 
-    if (!Number.isNaN(sound)) bucket.sounds.push(sound);
+    if (!Number.isNaN(sound)) {
+      bucket.sounds.push(sound);
+      if (bucket.sensorSounds[row.sensor]) {
+        bucket.sensorSounds[row.sensor].push(sound);
+      }
+    }
     if (!Number.isNaN(distance) && distance >= 0) bucket.distances.push(distance);
   }
 
   return Array.from(bucketMap.values()).map((bucket) => ({
     label: formatHourLabel(bucket.date),
     sound: average(bucket.sounds),
-    distance: average(bucket.distances)
+    distance: average(bucket.distances),
+    sensorAverages: {
+      sona1: average(bucket.sensorSounds.sona1),
+      sona2: average(bucket.sensorSounds.sona2),
+      sona3: average(bucket.sensorSounds.sona3)
+    }
   }));
 }
 
@@ -135,7 +156,12 @@ function buildDayBuckets(rows, daysBack = 30) {
     const bucketDate = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
     bucketDate.setHours(0, 0, 0, 0);
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}`;
-    bucketMap.set(key, { date: bucketDate, sounds: [], distances: [] });
+    bucketMap.set(key, {
+      date: bucketDate,
+      sounds: [],
+      distances: [],
+      sensorSounds: { sona1: [], sona2: [], sona3: [] }
+    });
   }
 
   for (const row of rows) {
@@ -151,14 +177,24 @@ function buildDayBuckets(rows, daysBack = 30) {
     const sound = Number(row.sound);
     const distance = Number(row.distance_cm);
 
-    if (!Number.isNaN(sound)) bucket.sounds.push(sound);
+    if (!Number.isNaN(sound)) {
+      bucket.sounds.push(sound);
+      if (bucket.sensorSounds[row.sensor]) {
+        bucket.sensorSounds[row.sensor].push(sound);
+      }
+    }
     if (!Number.isNaN(distance) && distance >= 0) bucket.distances.push(distance);
   }
 
   return Array.from(bucketMap.values()).map((bucket) => ({
     label: formatDayLabel(bucket.date),
     sound: average(bucket.sounds),
-    distance: average(bucket.distances)
+    distance: average(bucket.distances),
+    sensorAverages: {
+      sona1: average(bucket.sensorSounds.sona1),
+      sona2: average(bucket.sensorSounds.sona2),
+      sona3: average(bucket.sensorSounds.sona3)
+    }
   }));
 }
 
@@ -195,7 +231,7 @@ function updateSummary(bucketedData) {
   renderDistanceChart(bucketedData);
 }
 
-function getChartConfig(view, labels, values) {
+function getChartConfig(view, labels, values, datasetsOverride = null) {
   const commonOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -224,7 +260,7 @@ function getChartConfig(view, labels, values) {
       type: "bar",
       data: {
         labels,
-        datasets: [{
+        datasets: datasetsOverride || [{
           label: "Daily Avg Estimated dB",
           data: values,
           borderWidth: 1,
@@ -242,7 +278,7 @@ function getChartConfig(view, labels, values) {
       type: "line",
       data: {
         labels,
-        datasets: [{
+        datasets: datasetsOverride || [{
           label: "Daily Avg Estimated dB (Month)",
           data: values,
           borderColor: "#9FD0FF",
@@ -261,7 +297,7 @@ function getChartConfig(view, labels, values) {
     type: "line",
     data: {
       labels,
-      datasets: [{
+      datasets: datasetsOverride || [{
         label: "Hourly Avg Estimated dB",
         data: values,
         borderColor: "#9FD0FF",
@@ -352,12 +388,13 @@ function renderDistanceChart(bucketedData) {
 
 function updateTitle(view) {
   const title = document.getElementById("chartTitle");
+  const scopeLabel = selectedSensor ? "Sensor Log" : "All Sensors";
   if (view === "hour") {
-    title.textContent = "Estimated Sound Levels — Hourly View (Last 24 Hours)";
+    title.textContent = `${scopeLabel} — Hourly View (Last 24 Hours)`;
   } else if (view === "day") {
-    title.textContent = "Estimated Sound Levels — Daily Average View (Last 7 Days)";
+    title.textContent = `${scopeLabel} — Daily Average View (Last 7 Days)`;
   } else {
-    title.textContent = "Estimated Sound Levels — Daily Trend Across Month";
+    title.textContent = `${scopeLabel} — Daily Trend Across Month`;
   }
 }
 
@@ -376,13 +413,28 @@ async function loadHistory(view = "hour") {
 
     const labels = bucketedData.map((d) => d.label);
     const values = bucketedData.map((d) => d.sound);
+    let datasetsOverride = null;
+
+    if (!selectedSensor) {
+      datasetsOverride = sensorIds.map((sensorId) => ({
+        label: sensorSeriesMeta[sensorId].label,
+        data: bucketedData.map((d) => d.sensorAverages[sensorId]),
+        borderColor: sensorSeriesMeta[sensorId].color,
+        backgroundColor: sensorSeriesMeta[sensorId].fill,
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        borderWidth: 2
+      }));
+    }
 
     updateSummary(bucketedData);
     updateTitle(view);
 
     const ctx = document.getElementById("historyChart").getContext("2d");
     if (historyChart) historyChart.destroy();
-    historyChart = new Chart(ctx, getChartConfig(view, labels, values));
+    historyChart = new Chart(ctx, getChartConfig(view, labels, values, datasetsOverride));
   } catch (error) {
     console.error("[SONA] History load error:", error);
 
