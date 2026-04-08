@@ -256,6 +256,14 @@ body {
   flex-direction: column;
 }
 
+.direction-card {
+  margin-bottom: 12px;
+}
+
+.direction-meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .wave-header-row {
   display: flex;
   justify-content: space-between;
@@ -487,6 +495,10 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .direction-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .unity-placeholder {
     min-height: 360px;
     height: 360px;
@@ -524,6 +536,10 @@ th {
   .wave-header-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .direction-meta {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -218,6 +218,54 @@ function findLoudestSensor(data) {
   return loudestId;
 }
 
+function prettyDirectionLabel(label) {
+  if (!label || label === "UNKNOWN") return "Unknown";
+  return String(label)
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function updateDirectionCard(directionData) {
+  const badgeEl = document.getElementById("directionBadge");
+  const labelEl = document.getElementById("directionLabel");
+  const angleEl = document.getElementById("directionAngle");
+  const confidenceEl = document.getElementById("directionConfidence");
+  const distanceEl = document.getElementById("directionDistance");
+
+  const updatedAt = Number(directionData && directionData.updatedAt ? directionData.updatedAt : 0);
+  const isLive = updatedAt > 0 && Date.now() - updatedAt < 6000;
+
+  if (!directionData || !isLive) {
+    if (labelEl) labelEl.textContent = "--";
+    if (angleEl) angleEl.textContent = "--";
+    if (confidenceEl) confidenceEl.textContent = "--";
+    if (distanceEl) distanceEl.textContent = "--";
+    updateBadge(badgeEl, false, false);
+    return;
+  }
+
+  const angle = Number(directionData.angle_deg);
+  const confidence = Number(directionData.confidence);
+  const estimatedDistance = Number(directionData.estimated_distance_cm);
+
+  if (labelEl) labelEl.textContent = prettyDirectionLabel(directionData.label);
+  if (angleEl) angleEl.textContent = Number.isFinite(angle) ? `${angle.toFixed(1)} deg` : "--";
+  if (confidenceEl) {
+    confidenceEl.textContent = Number.isFinite(confidence)
+      ? `${Math.round(confidence * 100)}%`
+      : "--";
+  }
+  if (distanceEl) {
+    distanceEl.textContent = Number.isFinite(estimatedDistance)
+      ? `${estimatedDistance.toFixed(1)} cm`
+      : "--";
+  }
+
+  updateBadge(badgeEl, true, true);
+}
+
 async function loadLiveData() {
   try {
     const response = await fetch("/api/arduino");
@@ -233,10 +281,12 @@ async function loadLiveData() {
     }
 
     const activeSensorId = findLoudestSensor(data);
+    const direction = payload && payload.latest ? payload.latest._direction : null;
 
     updateSensorCard("sona1", data.sona1, activeSensorId === "sona1", 1);
     updateSensorCard("sona2", data.sona2, activeSensorId === "sona2", 2);
     updateSensorCard("sona3", data.sona3, activeSensorId === "sona3", 3);
+    updateDirectionCard(direction);
 
     drawGraph();
   } catch (error) {
@@ -244,6 +294,7 @@ async function loadLiveData() {
     updateSensorCard("sona1", null, false, 1);
     updateSensorCard("sona2", null, false, 2);
     updateSensorCard("sona3", null, false, 3);
+    updateDirectionCard(null);
     drawGraph();
   }
 }

@@ -4,10 +4,17 @@ const querystring = require("querystring");
 
 const SENSOR_IDS = ["sona1", "sona2", "sona3"];
 const MAX_RECORDS = 5000;
+const LIVE_WINDOW_MS = 6000;
 const runningOnVercel = Boolean(process.env.VERCEL);
 const DATA_FILE = runningOnVercel
   ? path.join("/tmp", "sona-data.json")
   : path.join(process.cwd(), "data.json");
+
+const SENSOR_LAYOUT = {
+  sona1: { x: -1.0, y: 0.0 },
+  sona2: { x: 1.0, y: 0.0 },
+  sona3: { x: 0.0, y: 1.25 }
+};
 
 let historyMemory = [];
 let latestData = createEmptyLatestData();
@@ -16,7 +23,15 @@ function createEmptyLatestData() {
   return {
     sona1: { sound: 0, distance: 0, updatedAt: 0 },
     sona2: { sound: 0, distance: 0, updatedAt: 0 },
-    sona3: { sound: 0, distance: 0, updatedAt: 0 }
+    sona3: { sound: 0, distance: 0, updatedAt: 0 },
+    _direction: {
+      label: "UNKNOWN",
+      angle_deg: null,
+      confidence: 0,
+      strongest_sensor: null,
+      estimated_distance_cm: null,
+      updatedAt: 0
+    }
   };
 }
 
@@ -34,6 +49,125 @@ function soundToState(sound) {
 function canonicalSensorId(sensorId) {
   const key = String(sensorId || "").trim().toLowerCase();
   return SENSOR_IDS.includes(key) ? key : null;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function angleToDirectionLabel(angleDeg) {
+  const normalized = ((angleDeg % 360) + 360) % 360;
+  const sectors = [
+    { label: "RIGHT", center: 0 },
+    { label: "FRONT_RIGHT", center: 45 },
+    { label: "FRONT", center: 90 },
+    { label: "FRONT_LEFT", center: 135 },
+    { label: "LEFT", center: 180 },
+    { label: "BACK_LEFT", center: 225 },
+    { label: "BACK", center: 270 },
+    { label: "BACK_RIGHT", center: 315 }
+  ];
+
+  let best = sectors[0];
+  let bestDistance = Infinity;
+
+  for (const sector of sectors) {
+    const delta = Math.abs((((normalized - sector.center) % 360) + 540) % 360 - 180);
+    if (delta < bestDistance) {
+      bestDistance = delta;
+      best = sector;
+    }
+  }
+
+  return best.label;
+}
+
+function inferDirectionFromLatest(now = Date.now()) {
+  const weightedSensors = [];
+
+  for (const sensorId of SENSOR_IDS) {
+    const sensor = latestData[sensorId];
+    if (!sensor) continue;
+
+    const updatedAt = Number(sensor.updatedAt || 0);
+    if (!updatedAt || now - updatedAt > LIVE_WINDOW_MS) continue;
+
+    const sound = toNumber(sensor.sound);
+    const distance = toNumber(sensor.distance);
+    if (sound == null) continue;
+
+    const normalizedSound = clamp((sound - 30) / 70, 0, 1);
+    const safeDistance = distance == null || distance < 0 ? null : distance;
+    const distanceFactor = safeDistance == null ? 1 : 1 / (1 + safeDistance / 120);
+    const weight = normalizedSound * distanceFactor;
+
+    if (weight <= 0) continue;
+
+    weightedSensors.push({
+      id: sensorId,
+      weight,
+      sound,
+      distance: safeDistance
+    });
+  }
+
+  if (!weightedSensors.length) {
+    return {
+      label: "UNKNOWN",
+      angle_deg: null,
+      confidence: 0,
+      strongest_sensor: null,
+      estimated_distance_cm: null,
+      updatedAt: now
+    };
+  }
+
+  weightedSensors.sort((a, b) => b.weight - a.weight);
+  const strongest = weightedSensors[0];
+
+  const totalWeight = weightedSensors.reduce((sum, sensor) => sum + sensor.weight, 0);
+  if (totalWeight <= 0) {
+    return {
+      label: "UNKNOWN",
+      angle_deg: null,
+      confidence: 0,
+      strongest_sensor: strongest.id,
+      estimated_distance_cm: strongest.distance,
+      updatedAt: now
+    };
+  }
+
+  let x = 0;
+  let y = 0;
+  let weightedDistance = 0;
+  let distanceWeight = 0;
+
+  for (const sensor of weightedSensors) {
+    const point = SENSOR_LAYOUT[sensor.id];
+    x += point.x * sensor.weight;
+    y += point.y * sensor.weight;
+
+    if (sensor.distance != null) {
+      weightedDistance += sensor.distance * sensor.weight;
+      distanceWeight += sensor.weight;
+    }
+  }
+
+  const angleDeg = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  const top2Delta = weightedSensors.length > 1
+    ? (weightedSensors[0].weight - weightedSensors[1].weight) / weightedSensors[0].weight
+    : 1;
+  const sensorCoverage = clamp(weightedSensors.length / SENSOR_IDS.length, 0, 1);
+  const confidence = clamp(top2Delta * 0.7 + sensorCoverage * 0.3, 0, 1);
+
+  return {
+    label: angleToDirectionLabel(angleDeg),
+    angle_deg: Number(angleDeg.toFixed(1)),
+    confidence: Number(confidence.toFixed(2)),
+    strongest_sensor: strongest.id,
+    estimated_distance_cm: distanceWeight > 0 ? Number((weightedDistance / distanceWeight).toFixed(1)) : null,
+    updatedAt: now
+  };
 }
 
 function ensureDataFile() {
@@ -68,7 +202,12 @@ function coerceHistoryRow(row) {
     timestamp,
     sound: safeSound,
     distance_cm: distance ?? 0,
-    sound_state: row.sound_state || soundToState(safeSound)
+    sound_state: row.sound_state || soundToState(safeSound),
+    direction_label: typeof row.direction_label === "string" ? row.direction_label : undefined,
+    direction_angle_deg: toNumber(row.direction_angle_deg),
+    direction_confidence: toNumber(row.direction_confidence),
+    strongest_sensor: canonicalSensorId(row.strongest_sensor) || undefined,
+    estimated_direction_distance_cm: toNumber(row.estimated_direction_distance_cm)
   };
 }
 
@@ -191,6 +330,7 @@ function updateLatestFromEntries(entries) {
 }
 
 function getLatest() {
+  latestData._direction = inferDirectionFromLatest();
   return latestData;
 }
 
@@ -203,14 +343,25 @@ function savePayload(body) {
   }
 
   updateLatestFromEntries(entries);
+  const direction = inferDirectionFromLatest();
+  latestData._direction = direction;
+
+  const stampedEntries = entries.map((entry) => ({
+    ...entry,
+    direction_label: direction.label,
+    direction_angle_deg: direction.angle_deg,
+    direction_confidence: direction.confidence,
+    strongest_sensor: direction.strongest_sensor,
+    estimated_direction_distance_cm: direction.estimated_distance_cm
+  }));
 
   const history = readHistory();
-  history.push(...entries);
+  history.push(...stampedEntries);
   writeHistory(history);
 
-  console.log(`[SONA] Persisted ${entries.length} reading(s). Total cached rows: ${history.length}`);
+  console.log(`[SONA] Persisted ${stampedEntries.length} reading(s). Total cached rows: ${history.length}`);
 
-  return { ok: true, entries };
+  return { ok: true, entries: stampedEntries, direction };
 }
 
 function getHistory(options = {}) {

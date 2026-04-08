@@ -25,6 +25,15 @@ function sensorBorderColor(sensorId) {
   return "#D8E2FF";
 }
 
+function prettyDirectionLabel(label) {
+  if (!label || label === "UNKNOWN") return "Unknown";
+  return String(label)
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 async function loadRawData() {
   const tbody = document.querySelector("#rawTable tbody");
 
@@ -39,13 +48,14 @@ async function loadRawData() {
     const newestFirst = [...rows].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     if (!newestFirst.length) {
-      tbody.innerHTML = `<tr><td colspan="5">No saved history yet</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7">No saved history yet</td></tr>`;
       return;
     }
 
     for (const item of newestFirst) {
       const sound = Number(item.sound);
       const distance = Number(item.distance_cm);
+      const confidence = Number(item.direction_confidence);
       const row = document.createElement("tr");
       row.style.borderLeft = `4px solid ${sensorBorderColor(item.sensor)}`;
 
@@ -55,12 +65,14 @@ async function loadRawData() {
         <td>${Number.isFinite(sound) ? sound.toFixed(1) + " dB" : "--"}</td>
         <td>${item.sound_state ? item.sound_state.toUpperCase() : stateFromSound(sound)}</td>
         <td>${Number.isFinite(distance) ? distance.toFixed(1) + " cm" : "--"}</td>
+        <td>${prettyDirectionLabel(item.direction_label)}</td>
+        <td>${Number.isFinite(confidence) ? Math.round(confidence * 100) + "%" : "--"}</td>
       `;
 
       tbody.appendChild(row);
     }
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="5">Error loading saved data</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7">Error loading saved data</td></tr>`;
     console.error("[SONA] Raw data load error:", err);
   }
 }
