@@ -12,6 +12,9 @@ const sensorColors = {
 
 const maxPoints = 120;
 const sensorIds = ["sona1", "sona2", "sona3"];
+const DASHBOARD_WINDOW_MS = 60 * 1000;
+const DASHBOARD_REFRESH_MS = 60 * 1000;
+const SENSOR_LIVE_WINDOW_MS = 2 * 60 * 1000;
 
 const canvas = document.getElementById("waveCanvas");
 const ctx = canvas.getContext("2d");
@@ -81,6 +84,85 @@ function drawGraph() {
   drawSingleLine(soundHistory.sona1, "#9FD0FF", w, h);
   drawSingleLine(soundHistory.sona2, "#A8FFB0", w, h);
   drawSingleLine(soundHistory.sona3, "#FFB3D9", w, h);
+}
+
+function parseTimestamp(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function average(values) {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function buildMinuteAverages(rows) {
+  const now = Date.now();
+  const cutoff = now - DASHBOARD_WINDOW_MS;
+  const groups = {
+    sona1: { sound: [], distance: [], latestAt: 0 },
+    sona2: { sound: [], distance: [], latestAt: 0 },
+    sona3: { sound: [], distance: [], latestAt: 0 }
+  };
+
+  for (const row of rows) {
+    if (!row || !sensorIds.includes(row.sensor)) continue;
+
+    const stamp = parseTimestamp(row.timestamp);
+    if (!stamp) continue;
+
+    const ts = stamp.getTime();
+    if (ts < cutoff) continue;
+
+    const sound = Number(row.sound);
+    const distance = Number(row.distance_cm);
+
+    if (!Number.isNaN(sound)) groups[row.sensor].sound.push(sound);
+    if (!Number.isNaN(distance) && distance >= 0) groups[row.sensor].distance.push(distance);
+
+    if (ts > groups[row.sensor].latestAt) {
+      groups[row.sensor].latestAt = ts;
+    }
+  }
+
+  return {
+    sona1: {
+      sound: average(groups.sona1.sound),
+      distance: average(groups.sona1.distance),
+      updatedAt: groups.sona1.latestAt
+    },
+    sona2: {
+      sound: average(groups.sona2.sound),
+      distance: average(groups.sona2.distance),
+      updatedAt: groups.sona2.latestAt
+    },
+    sona3: {
+      sound: average(groups.sona3.sound),
+      distance: average(groups.sona3.distance),
+      updatedAt: groups.sona3.latestAt
+    }
+  };
+}
+
+function findLatestDirection(rows) {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i];
+    if (!row || !row.direction_label) continue;
+
+    const stamp = parseTimestamp(row.timestamp);
+    const updatedAt = stamp ? stamp.getTime() : 0;
+
+    return {
+      label: row.direction_label,
+      angle_deg: Number(row.direction_angle_deg),
+      confidence: Number(row.direction_confidence),
+      strongest_sensor: row.strongest_sensor || null,
+      estimated_distance_cm: Number(row.estimated_direction_distance_cm),
+      updatedAt
+    };
+  }
+
+  return null;
 }
 
 function setStatus(box, state, fallbackText = "NO DATA") {
@@ -162,7 +244,7 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
   const distance = Number(sensorData.distance);
   const updatedAt = Number(sensorData.updatedAt || 0);
   const age = Date.now() - updatedAt;
-  const isLive = age < 6000;
+  const isLive = updatedAt > 0 && age < SENSOR_LIVE_WINDOW_MS;
 
   if (titleEl) {
     titleEl.textContent = isActive
@@ -180,18 +262,18 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
   }
 
   if (!Number.isNaN(sound) && isLive) {
-    setStatus(statusEl, getSoundState(sound), "WAITING");
+    setStatus(statusEl, getSoundState(sound), "NO DATA");
 
     soundHistory[sensorId].push(sound);
     if (soundHistory[sensorId].length > maxPoints) {
       soundHistory[sensorId].shift();
     }
   } else {
-    setStatus(statusEl, null, "WAITING");
+    setStatus(statusEl, null, "NO DATA");
   }
 
   updateBadge(badgeEl, isActive, isLive);
-  updateCardClasses(cardEl, isActive);
+  updateCardClasses(cardEl, isActive, isLive);
 }
 
 function findLoudestSensor(data) {
@@ -206,7 +288,7 @@ function findLoudestSensor(data) {
     const updatedAt = Number(sensor.updatedAt || 0);
     const age = Date.now() - updatedAt;
 
-    if (age > 6000) continue;
+    if (age > SENSOR_LIVE_WINDOW_MS) continue;
     if (Number.isNaN(sound)) continue;
 
     if (sound > loudestValue) {
@@ -235,7 +317,7 @@ function updateDirectionCard(directionData) {
   const distanceEl = document.getElementById("directionDistance");
 
   const updatedAt = Number(directionData && directionData.updatedAt ? directionData.updatedAt : 0);
-  const isLive = updatedAt > 0 && Date.now() - updatedAt < 6000;
+  const isLive = updatedAt > 0 && Date.now() - updatedAt < SENSOR_LIVE_WINDOW_MS;
 
   if (!directionData || !isLive) {
     if (labelEl) labelEl.textContent = "--";
@@ -268,20 +350,26 @@ function updateDirectionCard(directionData) {
 
 async function loadLiveData() {
   try {
-    const response = await fetch("/api/arduino");
+    const response = await fetch("/api/history?limit=5000&order=asc");
     if (!response.ok) {
-      throw new Error(`Live fetch failed with status ${response.status}`);
+      throw new Error(`History fetch failed with status ${response.status}`);
     }
 
     const payload = await response.json();
-    const data = payload && payload.latest ? payload.latest : payload;
+    const rows = Array.isArray(payload)
+      ? payload
+      : payload && Array.isArray(payload.rows)
+        ? payload.rows
+        : [];
+
+    const data = buildMinuteAverages(rows);
+    const direction = findLatestDirection(rows);
 
     if (!data || typeof data !== "object") {
       throw new Error("Live response has invalid shape");
     }
 
     const activeSensorId = findLoudestSensor(data);
-    const direction = payload && payload.latest ? payload.latest._direction : null;
 
     updateSensorCard("sona1", data.sona1, activeSensorId === "sona1", 1);
     updateSensorCard("sona2", data.sona2, activeSensorId === "sona2", 2);
@@ -306,5 +394,5 @@ window.addEventListener("resize", () => {
   drawGraph();
 });
 
-setInterval(loadLiveData, 1000);
+setInterval(loadLiveData, DASHBOARD_REFRESH_MS);
 loadLiveData();
