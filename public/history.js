@@ -44,6 +44,20 @@ function formatDayLabel(date) {
   });
 }
 
+function getLatestLoggedDate(rows) {
+  let latest = null;
+
+  for (const row of rows) {
+    const date = parseTimestamp(row.timestamp);
+    if (!date) continue;
+    if (!latest || date.getTime() > latest.getTime()) {
+      latest = date;
+    }
+  }
+
+  return latest;
+}
+
 function average(numbers) {
   if (!numbers.length) return null;
   return numbers.reduce((sum, n) => sum + n, 0) / numbers.length;
@@ -87,12 +101,12 @@ function updatePageHeading() {
 }
 
 function buildHourBuckets(rows, hoursBack = 24) {
-  const now = new Date();
-  const currentHourStart = new Date(now);
-  currentHourStart.setMinutes(0, 0, 0);
+  const latestLogged = getLatestLoggedDate(rows) || new Date();
+  const anchorHourStart = new Date(latestLogged);
+  anchorHourStart.setMinutes(0, 0, 0);
 
-  // Use only completed hours so values roll forward once per hour.
-  const endExclusive = currentHourStart;
+  // Anchor to latest logged hour so persisted history still appears after reload.
+  const endExclusive = new Date(anchorHourStart.getTime() + 60 * 60 * 1000);
   const start = new Date(endExclusive.getTime() - hoursBack * 60 * 60 * 1000);
   const bucketMap = new Map();
 
@@ -143,13 +157,13 @@ function buildHourBuckets(rows, hoursBack = 24) {
 }
 
 function buildDayBuckets(rows, daysBack = 30) {
-  const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  const latestLogged = getLatestLoggedDate(rows) || new Date();
+  const anchorDayStart = new Date(latestLogged);
+  anchorDayStart.setHours(0, 0, 0, 0);
 
-  // Include today in day/month views so users can track intra-day movement.
-  const start = new Date(todayStart.getTime() - (daysBack - 1) * 24 * 60 * 60 * 1000);
-  const endInclusive = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+  // Anchor day/month windows to latest logged day instead of current day.
+  const start = new Date(anchorDayStart.getTime() - (daysBack - 1) * 24 * 60 * 60 * 1000);
+  const endInclusive = new Date(anchorDayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
   const bucketMap = new Map();
 
   for (let i = 0; i < daysBack; i++) {
