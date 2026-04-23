@@ -7,6 +7,8 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1035.0",
+    "@aws-sdk/util-dynamodb": "^3.996.2",
     "express": "^4.22.1",
     "socket.io": "^4.8.1"
   }

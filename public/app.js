@@ -106,7 +106,7 @@ function buildMinuteAverages(rows) {
   };
 
   for (const row of rows) {
-    if (!row || !sensorIds.includes(row.sensor)) continue;
+    if (!row || !sensorIds.includes(row.sensor_id)) continue;
 
     const stamp = parseTimestamp(row.timestamp);
     if (!stamp) continue;
@@ -114,14 +114,14 @@ function buildMinuteAverages(rows) {
     const ts = stamp.getTime();
     if (ts < cutoff) continue;
 
-    const sound = Number(row.sound);
+    const sound = Number(row.sound_db);
     const distance = Number(row.distance_cm);
 
-    if (!Number.isNaN(sound)) groups[row.sensor].sound.push(sound);
-    if (!Number.isNaN(distance) && distance >= 0) groups[row.sensor].distance.push(distance);
+    if (!Number.isNaN(sound)) groups[row.sensor_id].sound.push(sound);
+    if (!Number.isNaN(distance) && distance >= 0) groups[row.sensor_id].distance.push(distance);
 
-    if (ts > groups[row.sensor].latestAt) {
-      groups[row.sensor].latestAt = ts;
+    if (ts > groups[row.sensor_id].latestAt) {
+      groups[row.sensor_id].latestAt = ts;
     }
   }
 
@@ -240,9 +240,9 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
     return;
   }
 
-  const sound = Number(sensorData.sound);
-  const distance = Number(sensorData.distance);
-  const updatedAt = Number(sensorData.updatedAt || 0);
+  const sound = Number(sensorData.sound_db);
+  const distance = Number(sensorData.distance_cm);
+  const updatedAt = Number(sensorData.timestamp || 0);
   const age = Date.now() - updatedAt;
   const isLive = updatedAt > 0 && age < SENSOR_LIVE_WINDOW_MS;
 
@@ -262,7 +262,7 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
   }
 
   if (!Number.isNaN(sound) && isLive) {
-    setStatus(statusEl, getSoundState(sound), "NO DATA");
+    setStatus(statusEl, sensorData.state || getSoundState(sound), "NO DATA");
 
     soundHistory[sensorId].push(sound);
     if (soundHistory[sensorId].length > maxPoints) {
@@ -284,8 +284,8 @@ function findLoudestSensor(data) {
     const sensor = data[id];
     if (!sensor) continue;
 
-    const sound = Number(sensor.sound);
-    const updatedAt = Number(sensor.updatedAt || 0);
+    const sound = Number(sensor.sound_db);
+    const updatedAt = Number(sensor.timestamp || 0);
     const age = Date.now() - updatedAt;
 
     if (age > SENSOR_LIVE_WINDOW_MS) continue;
@@ -350,31 +350,21 @@ function updateDirectionCard(directionData) {
 
 async function loadLiveData() {
   try {
-    const response = await fetch("/api/history?limit=5000&order=asc");
-    if (!response.ok) {
-      throw new Error(`History fetch failed with status ${response.status}`);
+    const response = await fetch("/api/live");
+    if (!response.ok) throw new Error(`Live fetch failed with status ${response.status}`);
+    const rows = await response.json();
+    if (!Array.isArray(rows)) throw new Error("Live response invalid shape");
+
+    // Map by sensor_id so each sensor gets its latest reading
+    const dataMap = {};
+    for (const row of rows) {
+      if (row && row.sensor_id) dataMap[row.sensor_id] = row;
     }
 
-    const payload = await response.json();
-    const rows = Array.isArray(payload)
-      ? payload
-      : payload && Array.isArray(payload.rows)
-        ? payload.rows
-        : [];
-
-    const data = buildMinuteAverages(rows);
-    const direction = findLatestDirection(rows);
-
-    if (!data || typeof data !== "object") {
-      throw new Error("Live response has invalid shape");
-    }
-
-    const activeSensorId = findLoudestSensor(data);
-
-    updateSensorCard("sona1", data.sona1, activeSensorId === "sona1", 1);
-    updateSensorCard("sona2", data.sona2, activeSensorId === "sona2", 2);
-    updateSensorCard("sona3", data.sona3, activeSensorId === "sona3", 3);
-    updateDirectionCard(direction);
+    const activeSensorId = findLoudestSensor(dataMap);
+    updateSensorCard("sona1", dataMap.sona1 || null, activeSensorId === "sona1", 1);
+    updateSensorCard("sona2", dataMap.sona2 || null, activeSensorId === "sona2", 2);
+    updateSensorCard("sona3", dataMap.sona3 || null, activeSensorId === "sona3", 3);
 
     drawGraph();
   } catch (error) {
@@ -382,7 +372,6 @@ async function loadLiveData() {
     updateSensorCard("sona1", null, false, 1);
     updateSensorCard("sona2", null, false, 2);
     updateSensorCard("sona3", null, false, 3);
-    updateDirectionCard(null);
     drawGraph();
   }
 }

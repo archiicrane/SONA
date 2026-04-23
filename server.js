@@ -11,20 +11,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.text({ type: ["text/plain", "application/x-www-form-urlencoded"] }));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.all("/api/arduino", (req, res) => {
-  req.query = { ...(req.query || {}), route: "arduino" };
-  return sonaHandler(req, res);
-});
-
-app.all("/api/history", (req, res) => {
-  req.query = { ...(req.query || {}), route: "history" };
-  return sonaHandler(req, res);
-});
-
-app.all("/api/clear", (req, res) => {
-  req.query = { ...(req.query || {}), route: "clear" };
-  return sonaHandler(req, res);
-});
+app.get("/api/live", sonaHandler);
+app.get("/api/history", sonaHandler);
+app.get("/api/raw", sonaHandler);
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));

@@ -71,18 +71,18 @@ function stateFromSound(db) {
 
 async function fetchHistoryRows() {
   const query = selectedSensor
-    ? `/api/history?sensor=${encodeURIComponent(selectedSensor)}&limit=5000&order=asc`
-    : "/api/history?limit=5000&order=asc";
-
-  const response = await fetch(query);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch history (${response.status})`);
+    ? `/api/history?sensor=${encodeURIComponent(selectedSensor)}`
+    : "/api/history";
+  try {
+    const response = await fetch(query);
+    if (!response.ok) throw new Error(`Failed to fetch history (${response.status})`);
+    const payload = await response.json();
+    if (Array.isArray(payload)) return payload;
+    return [];
+  } catch (e) {
+    console.error("[SONA] History fetch error", e);
+    return [];
   }
-
-  const payload = await response.json();
-  if (Array.isArray(payload)) return payload;
-  if (payload && Array.isArray(payload.rows)) return payload.rows;
-  return [];
 }
 
 function updatePageHeading() {
@@ -132,13 +132,14 @@ function buildHourBuckets(rows, hoursBack = 24) {
     const bucket = bucketMap.get(key);
     if (!bucket) continue;
 
-    const sound = Number(row.sound);
+    if (!row) continue;
+    const sound = Number(row.sound_db);
     const distance = Number(row.distance_cm);
 
     if (!Number.isNaN(sound)) {
       bucket.sounds.push(sound);
-      if (bucket.sensorSounds[row.sensor]) {
-        bucket.sensorSounds[row.sensor].push(sound);
+      if (bucket.sensorSounds[row.sensor_id]) {
+        bucket.sensorSounds[row.sensor_id].push(sound);
       }
     }
     if (!Number.isNaN(distance) && distance >= 0) bucket.distances.push(distance);
@@ -188,13 +189,14 @@ function buildDayBuckets(rows, daysBack = 30) {
     const bucket = bucketMap.get(key);
     if (!bucket) continue;
 
-    const sound = Number(row.sound);
+    if (!row) continue;
+    const sound = Number(row.sound_db);
     const distance = Number(row.distance_cm);
 
     if (!Number.isNaN(sound)) {
       bucket.sounds.push(sound);
-      if (bucket.sensorSounds[row.sensor]) {
-        bucket.sensorSounds[row.sensor].push(sound);
+      if (bucket.sensorSounds[row.sensor_id]) {
+        bucket.sensorSounds[row.sensor_id].push(sound);
       }
     }
     if (!Number.isNaN(distance) && distance >= 0) bucket.distances.push(distance);
