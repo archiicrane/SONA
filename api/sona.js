@@ -1,5 +1,5 @@
 // AWS-backed SONA API — reads from DynamoDB via awsClient
-const aws = require("./awsClient");
+const aws = require("./_lib/awsClient");
 
 function normalize(row) {
   return {
@@ -14,20 +14,23 @@ function normalize(row) {
 module.exports = async function sonaHandler(req, res) {
   try {
     const url = req.url.split("?")[0];
+    // Support both Express direct routes (/api/live) and Vercel rewrites (?route=live)
+    const route = req.query.route
+      || (url.endsWith("/live") ? "live" : url.endsWith("/history") ? "history" : url.endsWith("/raw") ? "raw" : null);
 
-    if (url.endsWith("/live")) {
+    if (route === "live") {
       const rows = await aws.getLatestReadings();
       return res.json(rows.map(normalize));
     }
 
-    if (url.endsWith("/history")) {
+    if (route === "history") {
       const sensor = req.query.sensor || null;
       const range = req.query.range || null;
       const rows = await aws.getHistory(sensor, range);
       return res.json(rows.map(normalize));
     }
 
-    if (url.endsWith("/raw")) {
+    if (route === "raw") {
       const limit = Math.min(Number(req.query.limit) || 100, 500);
       const rows = await aws.getRaw(limit);
       return res.json(rows.map(normalize));
