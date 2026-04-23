@@ -4,12 +4,36 @@ const soundHistory = {
   sona3: []
 };
 
-// Persists last known reading per sensor across S3 fetches
-const sensorCache = {
-  sona1: null,
-  sona2: null,
-  sona3: null
-};
+const CACHE_KEY = "sona_sensor_cache";
+const HISTORY_KEY = "sona_history";
+const MAX_HISTORY = 2000;
+
+function loadSensorCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : { sona1: null, sona2: null, sona3: null };
+  } catch { return { sona1: null, sona2: null, sona3: null }; }
+}
+
+function saveSensorCache(cache) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch { /* ignore */ }
+}
+
+function appendToHistory(incoming) {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const history = raw ? JSON.parse(raw) : [];
+    const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
+    for (const row of incoming) {
+      const key = `${row.sensor_id}|${row.timestamp}`;
+      if (!existingKeys.has(key)) { history.push(row); existingKeys.add(key); }
+    }
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
+  } catch { /* ignore */ }
+}
+
+// Restore last known readings instantly on page load
+const sensorCache = loadSensorCache();
 
 const sensorColors = {
   sona1: "#9FD0FF",
@@ -391,9 +415,15 @@ async function loadLiveData() {
     }
 
     // Merge into cache — only update sensors that arrived in this fetch
+    const newRows = [];
     for (const id of sensorIds) {
-      if (incoming[id]) sensorCache[id] = incoming[id];
+      if (incoming[id]) {
+        sensorCache[id] = incoming[id];
+        newRows.push(incoming[id]);
+      }
     }
+    saveSensorCache(sensorCache);
+    if (newRows.length) appendToHistory(newRows);
 
     const activeSensorId = findLoudestSensor(sensorCache);
     updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
@@ -426,6 +456,15 @@ async function loadLiveData() {
 }
 
 resizeCanvas();
+
+// Render whatever is in the cache immediately so UI isn't blank on navigation
+(function renderCachedImmediately() {
+  const activeSensorId = findLoudestSensor(sensorCache);
+  updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
+  updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
+  updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
+  drawGraph();
+})();
 
 window.addEventListener("resize", () => {
   resizeCanvas();
