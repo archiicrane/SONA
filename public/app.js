@@ -13,7 +13,7 @@ const sensorColors = {
 const maxPoints = 120;
 const sensorIds = ["sona1", "sona2", "sona3"];
 const DASHBOARD_WINDOW_MS = 60 * 1000;
-const DASHBOARD_REFRESH_MS = 60 * 1000;
+const DASHBOARD_REFRESH_MS = 3 * 1000;
 const SENSOR_LIVE_WINDOW_MS = 2 * 60 * 1000;
 
 const canvas = document.getElementById("waveCanvas");
@@ -348,17 +348,23 @@ function updateDirectionCard(directionData) {
   updateBadge(badgeEl, true, true);
 }
 
+const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
+
 async function loadLiveData() {
   try {
-    const response = await fetch("/api/live");
+    const response = await fetch(S3_LATEST_URL + "?t=" + Date.now()); // cache-bust
     if (!response.ok) throw new Error(`Live fetch failed with status ${response.status}`);
-    const rows = await response.json();
-    if (!Array.isArray(rows)) throw new Error("Live response invalid shape");
+    const payload = await response.json();
 
-    // Map by sensor_id so each sensor gets its latest reading
-    const dataMap = {};
-    for (const row of rows) {
-      if (row && row.sensor_id) dataMap[row.sensor_id] = row;
+    // S3 latest.json is { sona1: {...}, sona2: {...}, sona3: {...} }
+    // Normalise: accept either that object shape or legacy array
+    let dataMap = {};
+    if (Array.isArray(payload)) {
+      for (const row of payload) {
+        if (row && row.sensor_id) dataMap[row.sensor_id] = row;
+      }
+    } else {
+      dataMap = payload;
     }
 
     const activeSensorId = findLoudestSensor(dataMap);
