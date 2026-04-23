@@ -4,6 +4,13 @@ const soundHistory = {
   sona3: []
 };
 
+// Persists last known reading per sensor across S3 fetches
+const sensorCache = {
+  sona1: null,
+  sona2: null,
+  sona3: null
+};
+
 const sensorColors = {
   sona1: "#9FD0FF",
   sona2: "#A8FFB0",
@@ -359,34 +366,34 @@ async function loadLiveData() {
 
     // Normalise S3 payload into { sona1: {...}, sona2: {...}, sona3: {...} }
     // Handles: flat single object, array of objects, or already-keyed map
-    let dataMap = {};
+    let incoming = {};
     if (Array.isArray(payload)) {
-      // Array of sensor rows — key by sensor_id
       for (const row of payload) {
         if (row && row.sensor_id) {
-          const key = row.sensor_id;
-          // normalise sound_state -> state
           if (row.sound_state && !row.state) row.state = row.sound_state;
-          dataMap[key] = row;
+          incoming[row.sensor_id] = row;
         }
       }
     } else if (payload && payload.sensor_id) {
-      // Flat single object — Lambda only wrote latest reading for one sensor
-      const key = payload.sensor_id;
+      // Flat single object — Lambda wrote latest reading for one sensor
       if (payload.sound_state && !payload.state) payload.state = payload.sound_state;
-      dataMap[key] = payload;
+      incoming[payload.sensor_id] = payload;
     } else {
-      // Already keyed map { sona1: {...}, ... }
       for (const [key, row] of Object.entries(payload || {})) {
         if (row && row.sound_state && !row.state) row.state = row.sound_state;
-        dataMap[key] = row;
+        incoming[key] = row;
       }
     }
 
-    const activeSensorId = findLoudestSensor(dataMap);
-    updateSensorCard("sona1", dataMap.sona1 || null, activeSensorId === "sona1", 1);
-    updateSensorCard("sona2", dataMap.sona2 || null, activeSensorId === "sona2", 2);
-    updateSensorCard("sona3", dataMap.sona3 || null, activeSensorId === "sona3", 3);
+    // Merge into cache — only update sensors that arrived in this fetch
+    for (const id of sensorIds) {
+      if (incoming[id]) sensorCache[id] = incoming[id];
+    }
+
+    const activeSensorId = findLoudestSensor(sensorCache);
+    updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
+    updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
+    updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
 
     drawGraph();
   } catch (error) {
