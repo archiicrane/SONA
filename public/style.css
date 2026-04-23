@@ -63,6 +63,16 @@ body {
   line-height: 1.4;
 }
 
+.video-load-hint {
+  border: 1px solid rgba(255, 183, 77, 0.42);
+  background: rgba(70, 48, 15, 0.42);
+  color: #FFE0A5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .app-shell {
   width: 100%;
   height: calc(100vh - 28px);
