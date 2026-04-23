@@ -69,20 +69,71 @@ function stateFromSound(db) {
   return "loud";
 }
 
-async function fetchHistoryRows() {
-  const query = selectedSensor
-    ? `/api/history?sensor=${encodeURIComponent(selectedSensor)}`
-    : "/api/history";
+const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
+const HISTORY_KEY = "sona_history";
+const MAX_HISTORY = 2000; // max readings kept in localStorage
+
+function loadStoredHistory() {
   try {
-    const response = await fetch(query);
-    if (!response.ok) throw new Error(`Failed to fetch history (${response.status})`);
-    const payload = await response.json();
-    if (Array.isArray(payload)) return payload;
-    return [];
-  } catch (e) {
-    console.error("[SONA] History fetch error", e);
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
     return [];
   }
+}
+
+function saveHistory(rows) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(-MAX_HISTORY)));
+  } catch {
+    // localStorage full — trim and retry
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(-500)));
+    } catch { /* ignore */ }
+  }
+}
+
+async function fetchAndAccumulate() {
+  try {
+    const response = await fetch(S3_LATEST_URL + "?t=" + Date.now());
+    if (!response.ok) return;
+    const payload = await response.json();
+
+    // Normalise to array of sensor rows
+    let incoming = [];
+    if (Array.isArray(payload)) {
+      incoming = payload.filter((r) => r && r.sensor_id);
+    } else if (payload && payload.sensor_id) {
+      incoming = [payload];
+    } else {
+      for (const row of Object.values(payload || {})) {
+        if (row && row.sensor_id) incoming.push(row);
+      }
+    }
+
+    if (!incoming.length) return;
+
+    const history = loadStoredHistory();
+    // Avoid duplicate timestamps per sensor
+    const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
+    for (const row of incoming) {
+      const key = `${row.sensor_id}|${row.timestamp}`;
+      if (!existingKeys.has(key)) {
+        history.push(row);
+        existingKeys.add(key);
+      }
+    }
+
+    saveHistory(history);
+  } catch { /* network error — ignore */ }
+}
+
+async function fetchHistoryRows() {
+  // Poll S3 once more to get latest, then return accumulated local history
+  await fetchAndAccumulate();
+  let rows = loadStoredHistory();
+  if (selectedSensor) rows = rows.filter((r) => r.sensor_id === selectedSensor);
+  return rows;
 }
 
 function updatePageHeading() {

@@ -34,17 +34,55 @@ function prettyDirectionLabel(label) {
     .join(" ");
 }
 
+const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
+const HISTORY_KEY = "sona_history";
+
+function loadStoredHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function loadRawData() {
   const tbody = document.querySelector("#rawTable tbody");
 
   try {
-    const response = await fetch("/api/raw?limit=100");
-    if (!response.ok) throw new Error(`Failed to fetch raw data (${response.status})`);
+    // Fetch latest from S3 and accumulate (same as history.js)
+    const response = await fetch(S3_LATEST_URL + "?t=" + Date.now());
+    if (response.ok) {
+      const payload = await response.json();
+      let incoming = [];
+      if (Array.isArray(payload)) {
+        incoming = payload.filter((r) => r && r.sensor_id);
+      } else if (payload && payload.sensor_id) {
+        incoming = [payload];
+      } else {
+        for (const row of Object.values(payload || {})) {
+          if (row && row.sensor_id) incoming.push(row);
+        }
+      }
 
-    const rows = await response.json();
-    const items = Array.isArray(rows) ? rows : [];
+      if (incoming.length) {
+        const history = loadStoredHistory();
+        const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
+        for (const row of incoming) {
+          const key = `${row.sensor_id}|${row.timestamp}`;
+          if (!existingKeys.has(key)) history.push(row);
+        }
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-2000))); } catch { /* ignore */ }
+      }
+    }
+
+    // Render from localStorage, newest first
+    const items = loadStoredHistory()
+      .slice()
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 100);
+
     tbody.innerHTML = "";
-
     if (!items.length) {
       tbody.innerHTML = `<tr><td colspan="5">No data yet</td></tr>`;
       return;
@@ -54,7 +92,7 @@ async function loadRawData() {
       if (!item) continue;
       const sound = Number(item.sound_db);
       const distance = Number(item.distance_cm);
-      const state = item.state || stateFromSound(sound);
+      const state = item.sound_state || item.state || stateFromSound(sound);
       const row = document.createElement("tr");
       row.style.borderLeft = `4px solid ${sensorBorderColor(item.sensor_id)}`;
 
