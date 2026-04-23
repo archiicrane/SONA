@@ -70,12 +70,15 @@ function stateFromSound(db) {
 }
 
 const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
-const HISTORY_KEY = "sona_history";
-const MAX_HISTORY = 2000; // max readings kept in localStorage
+const historyStore = window.SonaHistoryStore || null;
 
 function loadStoredHistory() {
+  if (historyStore && typeof historyStore.loadHistory === "function") {
+    return historyStore.loadHistory();
+  }
+
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = localStorage.getItem("sona_history");
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -83,13 +86,27 @@ function loadStoredHistory() {
 }
 
 function saveHistory(rows) {
+  if (historyStore && typeof historyStore.saveHistory === "function") {
+    historyStore.saveHistory(rows || []);
+    return;
+  }
+
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(-MAX_HISTORY)));
+    localStorage.setItem("sona_history", JSON.stringify(rows.slice(-12000)));
   } catch {
     // localStorage full — trim and retry
     try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(-500)));
+      localStorage.setItem("sona_history", JSON.stringify(rows.slice(-500)));
     } catch { /* ignore */ }
+  }
+}
+
+async function ensureSeededHistory() {
+  if (!historyStore || typeof historyStore.ensureSeeded !== "function") return;
+  try {
+    await historyStore.ensureSeeded();
+  } catch {
+    // ignore seed load errors
   }
 }
 
@@ -111,24 +128,31 @@ async function fetchAndAccumulate() {
       }
     }
 
-    if (!incoming.length) return;
+    const normalizedIncoming = historyStore && typeof historyStore.normalizeRow === "function"
+      ? incoming.map((row) => historyStore.normalizeRow(row)).filter(Boolean)
+      : incoming;
 
-    const history = loadStoredHistory();
-    // Avoid duplicate timestamps per sensor
-    const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
-    for (const row of incoming) {
-      const key = `${row.sensor_id}|${row.timestamp}`;
-      if (!existingKeys.has(key)) {
-        history.push(row);
-        existingKeys.add(key);
+    if (!normalizedIncoming.length) return;
+
+    if (historyStore && typeof historyStore.appendRows === "function") {
+      historyStore.appendRows(normalizedIncoming);
+    } else {
+      const history = loadStoredHistory();
+      const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
+      for (const row of normalizedIncoming) {
+        const key = `${row.sensor_id}|${row.timestamp}`;
+        if (!existingKeys.has(key)) {
+          history.push(row);
+          existingKeys.add(key);
+        }
       }
+      saveHistory(history);
     }
-
-    saveHistory(history);
   } catch { /* network error — ignore */ }
 }
 
 async function fetchHistoryRows() {
+  await ensureSeededHistory();
   // Poll S3 once more to get latest, then return accumulated local history
   await fetchAndAccumulate();
   let rows = loadStoredHistory();

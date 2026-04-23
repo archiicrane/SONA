@@ -35,14 +35,27 @@ function prettyDirectionLabel(label) {
 }
 
 const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
-const HISTORY_KEY = "sona_history";
+const historyStore = window.SonaHistoryStore || null;
 
 function loadStoredHistory() {
+  if (historyStore && typeof historyStore.loadHistory === "function") {
+    return historyStore.loadHistory();
+  }
+
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = localStorage.getItem("sona_history");
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
+  }
+}
+
+async function ensureSeededHistory() {
+  if (!historyStore || typeof historyStore.ensureSeeded !== "function") return;
+  try {
+    await historyStore.ensureSeeded();
+  } catch {
+    // ignore seed load errors
   }
 }
 
@@ -50,6 +63,8 @@ async function loadRawData() {
   const tbody = document.querySelector("#rawTable tbody");
 
   try {
+    await ensureSeededHistory();
+
     // Fetch latest from S3 and accumulate (same as history.js)
     const response = await fetch(S3_LATEST_URL + "?t=" + Date.now());
     if (response.ok) {
@@ -65,14 +80,22 @@ async function loadRawData() {
         }
       }
 
-      if (incoming.length) {
-        const history = loadStoredHistory();
-        const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
-        for (const row of incoming) {
-          const key = `${row.sensor_id}|${row.timestamp}`;
-          if (!existingKeys.has(key)) history.push(row);
+      const normalizedIncoming = historyStore && typeof historyStore.normalizeRow === "function"
+        ? incoming.map((row) => historyStore.normalizeRow(row)).filter(Boolean)
+        : incoming;
+
+      if (normalizedIncoming.length) {
+        if (historyStore && typeof historyStore.appendRows === "function") {
+          historyStore.appendRows(normalizedIncoming);
+        } else {
+          const history = loadStoredHistory();
+          const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
+          for (const row of normalizedIncoming) {
+            const key = `${row.sensor_id}|${row.timestamp}`;
+            if (!existingKeys.has(key)) history.push(row);
+          }
+          try { localStorage.setItem("sona_history", JSON.stringify(history.slice(-12000))); } catch { /* ignore */ }
         }
-        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-2000))); } catch { /* ignore */ }
       }
     }
 

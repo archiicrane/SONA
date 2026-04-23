@@ -5,8 +5,7 @@ const soundHistory = {
 };
 
 const CACHE_KEY = "sona_sensor_cache";
-const HISTORY_KEY = "sona_history";
-const MAX_HISTORY = 2000;
+const historyStore = window.SonaHistoryStore || null;
 
 function loadSensorCache() {
   try {
@@ -20,16 +19,30 @@ function saveSensorCache(cache) {
 }
 
 function appendToHistory(incoming) {
+  if (historyStore && typeof historyStore.appendRows === "function") {
+    historyStore.appendRows(incoming || []);
+    return;
+  }
+
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = localStorage.getItem("sona_history");
     const history = raw ? JSON.parse(raw) : [];
     const existingKeys = new Set(history.map((r) => `${r.sensor_id}|${r.timestamp}`));
     for (const row of incoming) {
       const key = `${row.sensor_id}|${row.timestamp}`;
       if (!existingKeys.has(key)) { history.push(row); existingKeys.add(key); }
     }
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
+    localStorage.setItem("sona_history", JSON.stringify(history.slice(-12000)));
   } catch { /* ignore */ }
+}
+
+async function bootstrapHistory() {
+  if (!historyStore || typeof historyStore.ensureSeeded !== "function") return;
+  try {
+    await historyStore.ensureSeeded();
+  } catch {
+    // ignore seed load errors
+  }
 }
 
 // Restore last known readings instantly on page load
@@ -472,4 +485,5 @@ window.addEventListener("resize", () => {
 });
 
 setInterval(loadLiveData, DASHBOARD_REFRESH_MS);
+bootstrapHistory();
 loadLiveData();
