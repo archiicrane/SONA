@@ -242,7 +242,8 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
 
   const sound = Number(sensorData.sound_db);
   const distance = Number(sensorData.distance_cm);
-  const updatedAt = Number(sensorData.timestamp || 0);
+  const ts = sensorData.timestamp;
+  const updatedAt = ts ? new Date(ts).getTime() : 0;
   const age = Date.now() - updatedAt;
   const isLive = updatedAt > 0 && age < SENSOR_LIVE_WINDOW_MS;
 
@@ -285,7 +286,7 @@ function findLoudestSensor(data) {
     if (!sensor) continue;
 
     const sound = Number(sensor.sound_db);
-    const updatedAt = Number(sensor.timestamp || 0);
+    const updatedAt = sensor.timestamp ? new Date(sensor.timestamp).getTime() : 0;
     const age = Date.now() - updatedAt;
 
     if (age > SENSOR_LIVE_WINDOW_MS) continue;
@@ -356,15 +357,30 @@ async function loadLiveData() {
     if (!response.ok) throw new Error(`Live fetch failed with status ${response.status}`);
     const payload = await response.json();
 
-    // S3 latest.json is { sona1: {...}, sona2: {...}, sona3: {...} }
-    // Normalise: accept either that object shape or legacy array
+    // Normalise S3 payload into { sona1: {...}, sona2: {...}, sona3: {...} }
+    // Handles: flat single object, array of objects, or already-keyed map
     let dataMap = {};
     if (Array.isArray(payload)) {
+      // Array of sensor rows — key by sensor_id
       for (const row of payload) {
-        if (row && row.sensor_id) dataMap[row.sensor_id] = row;
+        if (row && row.sensor_id) {
+          const key = row.sensor_id;
+          // normalise sound_state -> state
+          if (row.sound_state && !row.state) row.state = row.sound_state;
+          dataMap[key] = row;
+        }
       }
+    } else if (payload && payload.sensor_id) {
+      // Flat single object — Lambda only wrote latest reading for one sensor
+      const key = payload.sensor_id;
+      if (payload.sound_state && !payload.state) payload.state = payload.sound_state;
+      dataMap[key] = payload;
     } else {
-      dataMap = payload;
+      // Already keyed map { sona1: {...}, ... }
+      for (const [key, row] of Object.entries(payload || {})) {
+        if (row && row.sound_state && !row.state) row.state = row.sound_state;
+        dataMap[key] = row;
+      }
     }
 
     const activeSensorId = findLoudestSensor(dataMap);
