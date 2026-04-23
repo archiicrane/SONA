@@ -270,7 +270,12 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
   }
 
   if (!Number.isNaN(sound) && isLive) {
-    setStatus(statusEl, sensorData.state || getSoundState(sound), "NO DATA");
+    // Use state from sensor only if it's a recognized value, otherwise derive from dB
+    const knownStates = ["quiet", "medium", "loud"];
+    const resolvedState = knownStates.includes(sensorData.state)
+      ? sensorData.state
+      : getSoundState(sound);
+    setStatus(statusEl, resolvedState, "NO DATA");
 
     soundHistory[sensorId].push(sound);
     if (soundHistory[sensorId].length > maxPoints) {
@@ -394,6 +399,21 @@ async function loadLiveData() {
     updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
     updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
     updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
+
+    // Derive direction from loudest active sensor
+    if (activeSensorId && sensorCache[activeSensorId]) {
+      const activeSensor = sensorCache[activeSensorId];
+      const sensorNumber = { sona1: 1, sona2: 2, sona3: 3 }[activeSensorId];
+      updateDirectionCard({
+        label: `Sensor ${sensorNumber}`,
+        angle_deg: null,
+        confidence: null,
+        estimated_distance_cm: Number(activeSensor.distance_cm),
+        updatedAt: activeSensor.timestamp ? new Date(activeSensor.timestamp).getTime() : 0
+      });
+    } else {
+      updateDirectionCard(null);
+    }
 
     drawGraph();
   } catch (error) {
