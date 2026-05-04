@@ -816,6 +816,8 @@ async function loadLiveData() {
     renderDashboardFromCache();
   } finally {
     isAwsFetchInProgress = false;
+    // Release leadership so this tab can claim it again on the next cycle.
+    try { localStorage.removeItem(FETCH_LEADER_KEY); } catch { /* ignore */ }
   }
 }
 
