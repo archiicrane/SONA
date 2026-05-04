@@ -378,9 +378,9 @@ function updateDirectionCard(directionData) {
     return;
   }
 
-  const angle = Number(directionData.angle_deg);
-  const confidence = Number(directionData.confidence);
-  const estimatedDistance = Number(directionData.estimated_distance_cm);
+  const angle = directionData.angle_deg != null ? Number(directionData.angle_deg) : NaN;
+  const confidence = directionData.confidence != null ? Number(directionData.confidence) : NaN;
+  const estimatedDistance = directionData.estimated_distance_cm != null ? Number(directionData.estimated_distance_cm) : NaN;
 
   if (labelEl) labelEl.textContent = prettyDirectionLabel(directionData.label);
   if (angleEl) angleEl.textContent = Number.isFinite(angle) ? `${angle.toFixed(1)} deg` : "--";
@@ -448,10 +448,10 @@ async function loadLiveData() {
       const activeSensor = sensorCache[activeSensorId];
       const sensorNumber = { sona1: 1, sona2: 2, sona3: 3 }[activeSensorId];
       updateDirectionCard({
-        label: `Sensor ${sensorNumber}`,
-        angle_deg: null,
-        confidence: null,
-        estimated_distance_cm: Number(activeSensor.distance_cm),
+        label: activeSensor.direction_label || `Sensor ${sensorNumber}`,
+        angle_deg: activeSensor.direction_angle_deg ?? null,
+        confidence: activeSensor.direction_confidence ?? null,
+        estimated_distance_cm: activeSensor.estimated_direction_distance_cm ?? activeSensor.distance_cm ?? null,
         updatedAt: activeSensor.timestamp ? new Date(activeSensor.timestamp).getTime() : 0
       });
     } else {
