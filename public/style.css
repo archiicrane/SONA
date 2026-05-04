@@ -195,7 +195,7 @@ body {
 
 .app-layout {
   display: grid;
-  grid-template-columns: minmax(420px, 0.92fr) minmax(420px, 1.08fr);
+  grid-template-columns: 0.92fr 1.08fr;
   gap: 14px;
   width: 100%;
   flex: 1 1 auto;
@@ -1007,7 +1007,6 @@ body.analysis-scroll #historyChart {
 
 .app-layout {
   display: grid;
-  grid-template-columns: 0.95fr 1.05fr;
   gap: 14px;
   width: 100%;
   flex: 1 1 auto;
@@ -1525,6 +1524,16 @@ body.analysis-scroll #distanceChart {
   .app-shell {
     height: auto;
     min-height: calc(100dvh - 20px);
+    gap: 10px;
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .right-panel {
+    order: 2;
+  }
     gap: 10px;
   }
 
