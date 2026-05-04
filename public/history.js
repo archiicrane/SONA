@@ -145,6 +145,7 @@ function stateFromSound(db) {
 }
 
 const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
+const SEED_HISTORY_URL = "/seed-history.json";
 const historyStore = window.SonaHistoryStore || null;
 
 function loadStoredHistory() {
@@ -183,6 +184,39 @@ async function ensureSeededHistory() {
   } catch {
     // ignore seed load errors
   }
+}
+
+async function loadSeedRows() {
+  try {
+    const response = await fetch(`${SEED_HISTORY_URL}?v=${Date.now()}`);
+    if (!response.ok) return [];
+
+    const payload = await response.json();
+    if (!Array.isArray(payload)) return [];
+
+    if (historyStore && typeof historyStore.normalizeRow === "function") {
+      return payload.map((row) => historyStore.normalizeRow(row)).filter(Boolean);
+    }
+
+    return payload.filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function mergeRows(rows) {
+  const merged = [];
+  const keys = new Set();
+
+  for (const row of rows) {
+    if (!row || !row.sensor_id || !row.timestamp) continue;
+    const key = `${row.sensor_id}|${row.timestamp}`;
+    if (keys.has(key)) continue;
+    keys.add(key);
+    merged.push(row);
+  }
+
+  return merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 }
 
 async function fetchAndAccumulate() {
@@ -230,7 +264,8 @@ async function fetchHistoryRows() {
   await ensureSeededHistory();
   // Poll S3 once more to get latest, then return accumulated local history
   await fetchAndAccumulate();
-  let rows = loadStoredHistory();
+  const seedRows = await loadSeedRows();
+  let rows = mergeRows(seedRows.concat(loadStoredHistory()));
   if (selectedSensor) rows = rows.filter((r) => r.sensor_id === selectedSensor);
   return rows;
 }
