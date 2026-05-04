@@ -54,7 +54,8 @@ body {
   min-height: 380px;
   display: block;
   background: #030713;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center center;
 }
 
 .video-note {
