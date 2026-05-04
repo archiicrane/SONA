@@ -2,7 +2,7 @@
   const HISTORY_KEY = "sona_history";
   const MAX_HISTORY = 12000;
   const SEED_URL = "/seed-history.json";
-  const SEED_VERSION = "2026-04-seed-v1";
+  const SEED_VERSION = "2026-05-seed-v2";
   const SEED_FLAG_KEY = "sona_history_seed_version";
   const BOOTSTRAP_MIN_ROWS = 700;
 
@@ -89,9 +89,7 @@
 
   async function ensureSeeded() {
     try {
-      const seedVersion = localStorage.getItem(SEED_FLAG_KEY);
       const current = loadHistory();
-      if (seedVersion === SEED_VERSION && current.length >= BOOTSTRAP_MIN_ROWS) return current;
 
       const response = await fetch(`${SEED_URL}?v=${encodeURIComponent(SEED_VERSION)}`);
       if (!response.ok) return current;
@@ -99,7 +97,19 @@
       const payload = await response.json();
       if (!Array.isArray(payload) || !payload.length) return current;
 
-      const merged = saveHistory(current.concat(payload));
+      const seedRows = dedupeRows(payload);
+      const merged = dedupeRows(current.concat(seedRows));
+
+      // Re-save when the cached history is sparse, when the seed actually adds
+      // rows, or when the browser still carries an older seed marker.
+      if (
+        current.length < BOOTSTRAP_MIN_ROWS
+        || merged.length !== current.length
+        || localStorage.getItem(SEED_FLAG_KEY) !== SEED_VERSION
+      ) {
+        saveHistory(merged);
+      }
+
       localStorage.setItem(SEED_FLAG_KEY, SEED_VERSION);
       return merged;
     } catch {
