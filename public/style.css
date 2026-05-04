@@ -55,9 +55,7 @@ body {
   display: block;
   background: #030713;
   object-fit: cover;
-  object-position: center center;
-  transform: translateY(-6%) scale(1.16);
-  transform-origin: center center;
+  object-position: center 62%;
 }
 
 .video-note {
