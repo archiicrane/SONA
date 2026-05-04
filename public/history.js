@@ -12,6 +12,16 @@ const sensorSeriesMeta = {
   sona2: { label: "Sensor 2", color: "#A8FFB0", fill: "rgba(168, 255, 176, 0.16)" },
   sona3: { label: "Sensor 3", color: "#FFB3D9", fill: "rgba(255, 179, 217, 0.16)" }
 };
+const HEATMAP_DB_MIN = 35;
+const HEATMAP_DB_MAX = 95;
+const HEATMAP_IDW_POWER = 2;
+const HEATMAP_SENSOR_LAYOUT = {
+  sona1: { x: 20, y: 50, label: "S1" },
+  sona2: { x: 50, y: 40, label: "S2" },
+  sona3: { x: 75, y: 60, label: "S3" }
+};
+const heatmapCanvas = document.getElementById("analysisHeatmapCanvas");
+const heatmapCtx = heatmapCanvas ? heatmapCanvas.getContext("2d") : null;
 
 function syncViewportVars() {
   const root = document.documentElement;
@@ -42,6 +52,129 @@ function formatDayLabel(date) {
     month: "short",
     day: "numeric"
   });
+}
+
+function resizeHeatmapCanvas() {
+  if (!heatmapCanvas || !heatmapCtx) return;
+
+  const rect = heatmapCanvas.getBoundingClientRect();
+  const pixelRatio = window.devicePixelRatio || 1;
+  heatmapCanvas.width = Math.max(1, Math.round(rect.width * pixelRatio));
+  heatmapCanvas.height = Math.max(1, Math.round(rect.height * pixelRatio));
+  heatmapCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+}
+
+function normalizeDbValue(db, minDb = HEATMAP_DB_MIN, maxDb = HEATMAP_DB_MAX) {
+  if (!Number.isFinite(db)) return null;
+  const normalized = (db - minDb) / (maxDb - minDb);
+  return Math.max(0, Math.min(1, normalized));
+}
+
+function calculateHeatValueAtPoint(x, y, sensors, power = HEATMAP_IDW_POWER) {
+  const activeSensors = (sensors || []).filter((sensor) => sensor.active && Number.isFinite(sensor.db));
+  if (!activeSensors.length) return null;
+
+  let weightedHeat = 0;
+  let weightSum = 0;
+  let strongestWeight = 0;
+
+  for (const sensor of activeSensors) {
+    const distance = Math.max(Math.hypot(x - sensor.x, y - sensor.y), 1);
+    const weight = 1 / (distance ** power);
+    const normalizedDb = normalizeDbValue(sensor.db);
+    if (normalizedDb == null) continue;
+
+    weightedHeat += normalizedDb * weight;
+    weightSum += weight;
+    strongestWeight = Math.max(strongestWeight, weight);
+  }
+
+  if (!weightSum) return null;
+
+  const blendedHeat = weightedHeat / weightSum;
+  const proximity = Math.max(0, Math.min(1, strongestWeight * 28));
+  return blendedHeat * proximity;
+}
+
+function interpolateColor(start, end, amount) {
+  return start.map((channel, index) => channel + (end[index] - channel) * amount);
+}
+
+function getHeatmapColor(heatValue) {
+  const clamped = Math.max(0, Math.min(1, heatValue));
+  const stops = [
+    { at: 0.0, color: [76, 143, 255] },
+    { at: 0.35, color: [87, 214, 209] },
+    { at: 0.58, color: [244, 211, 94] },
+    { at: 0.78, color: [255, 152, 72] },
+    { at: 1.0, color: [255, 94, 94] }
+  ];
+
+  for (let index = 1; index < stops.length; index++) {
+    if (clamped <= stops[index].at) {
+      const previous = stops[index - 1];
+      const current = stops[index];
+      const range = current.at - previous.at || 1;
+      const amount = (clamped - previous.at) / range;
+      const [red, green, blue] = interpolateColor(previous.color, current.color, amount);
+      const alpha = 0.10 + clamped * 0.55;
+      return `rgba(${Math.round(red)}, ${Math.round(green)}, ${Math.round(blue)}, ${alpha.toFixed(3)})`;
+    }
+  }
+
+  return "rgba(255, 94, 94, 0.65)";
+}
+
+function buildHeatmapSensors(bucketedData) {
+  const latestBucket = bucketedData && bucketedData.length ? bucketedData[bucketedData.length - 1] : null;
+
+  return sensorIds.map((sensorId, index) => {
+    const layout = HEATMAP_SENSOR_LAYOUT[sensorId];
+    const marker = document.querySelector(`.sensor-dot.dot-${index + 1}`);
+    const db = latestBucket ? Number(latestBucket.sensorAverages[sensorId]) : NaN;
+    const active = Number.isFinite(db);
+
+    if (marker) {
+      marker.classList.toggle("active", active);
+      marker.classList.toggle("inactive", !active);
+      marker.title = active ? `${layout.label}: ${db.toFixed(1)} dB` : `${layout.label}: No data`;
+    }
+
+    return {
+      id: sensorId,
+      label: layout.label,
+      x: layout.x,
+      y: layout.y,
+      db: active ? db : null,
+      active
+    };
+  });
+}
+
+function renderAnalysisHeatmap(bucketedData) {
+  if (!heatmapCanvas || !heatmapCtx) return;
+
+  resizeHeatmapCanvas();
+
+  const width = heatmapCanvas.getBoundingClientRect().width;
+  const height = heatmapCanvas.getBoundingClientRect().height;
+  heatmapCtx.clearRect(0, 0, width, height);
+
+  const sensors = buildHeatmapSensors(bucketedData);
+  if (!sensors.some((sensor) => sensor.active)) return;
+
+  const cellSize = 4;
+  for (let py = 0; py < height; py += cellSize) {
+    for (let px = 0; px < width; px += cellSize) {
+      const normalizedX = (px / width) * 100;
+      const normalizedY = (py / height) * 100;
+      const heatValue = calculateHeatValueAtPoint(normalizedX, normalizedY, sensors);
+      if (heatValue == null || heatValue <= 0.01) continue;
+
+      heatmapCtx.fillStyle = getHeatmapColor(heatValue);
+      heatmapCtx.fillRect(px, py, cellSize, cellSize);
+    }
+  }
 }
 
 function startOfHour(date) {
@@ -616,6 +749,7 @@ async function loadHistory(view = "hour") {
 
     updateSummary(bucketedData);
     updateTitle(view);
+    renderAnalysisHeatmap(bucketedData);
 
     const ctx = document.getElementById("historyChart").getContext("2d");
     if (historyChart) historyChart.destroy();
@@ -632,6 +766,7 @@ async function loadHistory(view = "hour") {
     document.getElementById("maxSound").textContent = "--";
     document.getElementById("avgDistance").textContent = "--";
     document.getElementById("dominantState").textContent = "--";
+    renderAnalysisHeatmap([]);
   }
 }
 
@@ -655,7 +790,9 @@ loadHistory(currentView);
 setInterval(() => loadHistory(currentView), 5000);
 window.addEventListener("resize", () => {
   syncViewportVars();
+  resizeHeatmapCanvas();
   if (historyChart) historyChart.resize();
   if (stateChart) stateChart.resize();
   if (distanceChart) distanceChart.resize();
+  loadHistory(currentView);
 });

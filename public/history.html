@@ -87,12 +87,10 @@
         </div>
 
         <div class="card heatmap-card">
-          <div class="label">Future 3-Sensor Room Heatmap</div>
+          <div class="label">Estimated 3-Sensor Sound Heatmap</div>
           <div class="heatmap-placeholder">
-            <div class="heatmap-room">
-              <div class="heat-zone zone-1"></div>
-              <div class="heat-zone zone-2"></div>
-              <div class="heat-zone zone-3"></div>
+            <div class="heatmap-room" id="analysisHeatmapRoom">
+              <canvas id="analysisHeatmapCanvas"></canvas>
 
               <div class="sensor-dot dot-1">S1</div>
               <div class="sensor-dot dot-2">S2</div>
@@ -100,7 +98,7 @@
             </div>
 
             <div class="heatmap-note">
-              Placeholder for future Unity / spatial acoustic heatmap
+              Estimated spatial sound map using fixed sensor positions and current analysis values.
             </div>
           </div>
         </div>

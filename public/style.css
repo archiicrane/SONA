@@ -747,37 +747,17 @@ th {
   height: 150px;
   border-radius: 16px;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(126, 170, 255, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(8, 15, 38, 0.96) 0%, rgba(12, 22, 60, 0.96) 100%);
 }
 
-.heat-zone {
+#analysisHeatmapCanvas {
   position: absolute;
-  border-radius: 999px;
-  filter: blur(18px);
-  opacity: 0.7;
-}
-
-.zone-1 {
-  width: 140px;
-  height: 140px;
-  left: 12%;
-  top: 26%;
-  background: rgba(160, 233, 185, 0.45);
-}
-
-.zone-2 {
-  width: 170px;
-  height: 170px;
-  left: 38%;
-  top: 18%;
-  background: rgba(244, 211, 94, 0.38);
-}
-
-.zone-3 {
-  width: 180px;
-  height: 180px;
-  right: 12%;
-  bottom: 14%;
-  background: rgba(255, 107, 107, 0.34);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .sensor-dot {
@@ -793,6 +773,19 @@ th {
   color: #06111d;
   background: rgba(230, 240, 255, 0.92);
   box-shadow: 0 0 16px rgba(180, 210, 255, 0.22);
+  transition: opacity 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  z-index: 1;
+}
+
+.sensor-dot.active {
+  background: rgba(244, 248, 255, 0.96);
+  box-shadow: 0 0 20px rgba(196, 219, 255, 0.32);
+}
+
+.sensor-dot.inactive {
+  color: rgba(6, 17, 29, 0.65);
+  background: rgba(210, 220, 235, 0.58);
+  box-shadow: 0 0 10px rgba(180, 210, 255, 0.10);
 }
 
 .dot-1 {
