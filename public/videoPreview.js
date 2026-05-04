@@ -3,24 +3,17 @@
   const hint = document.getElementById("videoLoadHint");
   if (!video || !hint) return;
 
+  const hostedPreviewUrl = "https://sona-data-kelly.s3.us-east-1.amazonaws.com/My+project+-+SampleScene+-+Web+-+Unity+6.3+LTS+(6000.3.11f1)+_DX12_+2026-04-23+03-08-04.mp4";
+
   function showHint(message) {
     hint.hidden = false;
     hint.textContent = message;
   }
 
-  const host = window.location.hostname;
-  const isLocalHost = host === "localhost" || host === "127.0.0.1";
-
-  if (!isLocalHost) {
-    showHint("Preview video is local-only. Open this dashboard from http://localhost:3000 to view it, or upload the MP4 to S3 and I can wire it for Vercel.");
-  }
+  hint.hidden = true;
+  video.src = hostedPreviewUrl;
 
   video.addEventListener("error", () => {
-    if (isLocalHost) {
-      showHint("Video file was not found locally. Keep the MP4 in the project root and run the app with the local server.");
-      return;
-    }
-
-    showHint("Video is not deployed on this host. Use localhost for local preview, or provide a hosted MP4 URL.");
+    showHint("Video failed to load from S3. Check object URL, object permissions, and CORS settings.");
   });
 })();
