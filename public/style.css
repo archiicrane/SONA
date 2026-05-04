@@ -56,7 +56,7 @@ body {
   background: #030713;
   object-fit: cover;
   object-position: center center;
-  transform: scale(1.06);
+  transform: translateY(-6%) scale(1.16);
   transform-origin: center center;
 }
 
