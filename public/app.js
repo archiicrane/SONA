@@ -135,6 +135,39 @@ function parseTimestamp(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function isFiniteMetric(value) {
+  return Number.isFinite(Number(value));
+}
+
+function getSensorUpdatedAt(sensor) {
+  if (!sensor || !sensor.timestamp) return 0;
+  const parsed = parseTimestamp(sensor.timestamp);
+  return parsed ? parsed.getTime() : 0;
+}
+
+function isLiveTimestamp(updatedAt) {
+  return updatedAt > 0 && Date.now() - updatedAt < SENSOR_LIVE_WINDOW_MS;
+}
+
+function isValidSensorData(sensor) {
+  if (!sensor) return false;
+
+  const sound = Number(sensor.sound_db);
+  const distance = Number(sensor.distance_cm);
+  const updatedAt = getSensorUpdatedAt(sensor);
+
+  return Number.isFinite(sound)
+    && Number.isFinite(distance)
+    && distance >= 0
+    && isLiveTimestamp(updatedAt);
+}
+
+function setMetricValue(element, text, isMissing) {
+  if (!element) return;
+  element.textContent = text;
+  element.classList.toggle("muted", Boolean(isMissing));
+}
+
 function average(values) {
   if (!values.length) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -274,11 +307,12 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
   const distanceEl = document.getElementById(`${sensorId}Distance`);
   const statusEl = document.getElementById(`${sensorId}Status`);
 
-  if (!sensorData) {
+  if (!isValidSensorData(sensorData)) {
     if (titleEl) titleEl.textContent = `Sensor ${sensorNumber}`;
-    if (soundEl) soundEl.textContent = "--";
-    if (distanceEl) distanceEl.textContent = "--";
+    setMetricValue(soundEl, "--", true);
+    setMetricValue(distanceEl, "-- cm", true);
     setStatus(statusEl, null, "NO DATA");
+    soundHistory[sensorId] = [];
     updateBadge(badgeEl, false, false);
     updateCardClasses(cardEl, false);
     return;
@@ -286,10 +320,8 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
 
   const sound = Number(sensorData.sound_db);
   const distance = Number(sensorData.distance_cm);
-  const ts = sensorData.timestamp;
-  const updatedAt = ts ? new Date(ts).getTime() : 0;
-  const age = Date.now() - updatedAt;
-  const isLive = updatedAt > 0 && age < SENSOR_LIVE_WINDOW_MS;
+  const updatedAt = getSensorUpdatedAt(sensorData);
+  const isLive = isLiveTimestamp(updatedAt);
 
   if (titleEl) {
     titleEl.textContent = isActive
@@ -297,16 +329,10 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
       : `Sensor ${sensorNumber}`;
   }
 
-  if (soundEl) {
-    soundEl.textContent = !Number.isNaN(sound) ? `${sound.toFixed(1)} dB` : "--";
-  }
+  setMetricValue(soundEl, `${sound.toFixed(1)} dB`, false);
+  setMetricValue(distanceEl, `${distance.toFixed(1)} cm`, false);
 
-  if (distanceEl) {
-    distanceEl.textContent =
-      !Number.isNaN(distance) && distance >= 0 ? `${distance.toFixed(1)} cm` : "--";
-  }
-
-  if (!Number.isNaN(sound) && isLive) {
+  if (isLive) {
     // Use state from sensor only if it's a recognized value, otherwise derive from dB
     const knownStates = ["quiet", "medium", "loud"];
     const resolvedState = knownStates.includes(sensorData.state)
@@ -332,14 +358,9 @@ function findLoudestSensor(data) {
 
   for (const id of sensorIds) {
     const sensor = data[id];
-    if (!sensor) continue;
+    if (!isValidSensorData(sensor)) continue;
 
     const sound = Number(sensor.sound_db);
-    const updatedAt = sensor.timestamp ? new Date(sensor.timestamp).getTime() : 0;
-    const age = Date.now() - updatedAt;
-
-    if (age > SENSOR_LIVE_WINDOW_MS) continue;
-    if (Number.isNaN(sound)) continue;
 
     if (sound > loudestValue) {
       loudestValue = sound;
@@ -367,13 +388,13 @@ function updateDirectionCard(directionData) {
   const distanceEl = document.getElementById("directionDistance");
 
   const updatedAt = Number(directionData && directionData.updatedAt ? directionData.updatedAt : 0);
-  const isLive = updatedAt > 0 && Date.now() - updatedAt < SENSOR_LIVE_WINDOW_MS;
+  const isLive = isLiveTimestamp(updatedAt);
 
   if (!directionData || !isLive) {
-    if (labelEl) labelEl.textContent = "--";
-    if (angleEl) angleEl.textContent = "--";
-    if (confidenceEl) confidenceEl.textContent = "--";
-    if (distanceEl) distanceEl.textContent = "--";
+    setMetricValue(labelEl, "No data", true);
+    setMetricValue(angleEl, "--", true);
+    setMetricValue(confidenceEl, "--", true);
+    setMetricValue(distanceEl, "-- cm", true);
     updateBadge(badgeEl, false, false);
     return;
   }
@@ -382,18 +403,18 @@ function updateDirectionCard(directionData) {
   const confidence = directionData.confidence != null ? Number(directionData.confidence) : NaN;
   const estimatedDistance = directionData.estimated_distance_cm != null ? Number(directionData.estimated_distance_cm) : NaN;
 
-  if (labelEl) labelEl.textContent = prettyDirectionLabel(directionData.label);
-  if (angleEl) angleEl.textContent = Number.isFinite(angle) ? `${angle.toFixed(1)} deg` : "--";
-  if (confidenceEl) {
-    confidenceEl.textContent = Number.isFinite(confidence)
-      ? `${Math.round(confidence * 100)}%`
-      : "--";
-  }
-  if (distanceEl) {
-    distanceEl.textContent = Number.isFinite(estimatedDistance)
-      ? `${estimatedDistance.toFixed(1)} cm`
-      : "--";
-  }
+  setMetricValue(labelEl, prettyDirectionLabel(directionData.label), false);
+  setMetricValue(angleEl, Number.isFinite(angle) ? `${angle.toFixed(1)} deg` : "--", !Number.isFinite(angle));
+  setMetricValue(
+    confidenceEl,
+    Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : "--",
+    !Number.isFinite(confidence)
+  );
+  setMetricValue(
+    distanceEl,
+    Number.isFinite(estimatedDistance) ? `${estimatedDistance.toFixed(1)} cm` : "-- cm",
+    !Number.isFinite(estimatedDistance)
+  );
 
   updateBadge(badgeEl, true, true);
 }
@@ -427,13 +448,11 @@ async function loadLiveData() {
       }
     }
 
-    // Merge into cache — only update sensors that arrived in this fetch
+    // Replace stale cache entries with null so only real incoming sensors render.
     const newRows = [];
     for (const id of sensorIds) {
-      if (incoming[id]) {
-        sensorCache[id] = incoming[id];
-        newRows.push(incoming[id]);
-      }
+      sensorCache[id] = isValidSensorData(incoming[id]) ? incoming[id] : null;
+      if (sensorCache[id]) newRows.push(sensorCache[id]);
     }
     saveSensorCache(sensorCache);
     if (newRows.length) appendToHistory(newRows);
@@ -444,7 +463,7 @@ async function loadLiveData() {
     updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
 
     // Derive direction from loudest active sensor
-    if (activeSensorId && sensorCache[activeSensorId]) {
+    if (activeSensorId && isValidSensorData(sensorCache[activeSensorId])) {
       const activeSensor = sensorCache[activeSensorId];
       const sensorNumber = { sona1: 1, sona2: 2, sona3: 3 }[activeSensorId];
       updateDirectionCard({
@@ -476,6 +495,19 @@ resizeCanvas();
   updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
   updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
   updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
+  if (activeSensorId && isValidSensorData(sensorCache[activeSensorId])) {
+    const activeSensor = sensorCache[activeSensorId];
+    const sensorNumber = { sona1: 1, sona2: 2, sona3: 3 }[activeSensorId];
+    updateDirectionCard({
+      label: activeSensor.direction_label || `Sensor ${sensorNumber}`,
+      angle_deg: activeSensor.direction_angle_deg ?? null,
+      confidence: activeSensor.direction_confidence ?? null,
+      estimated_distance_cm: activeSensor.estimated_direction_distance_cm ?? activeSensor.distance_cm ?? null,
+      updatedAt: getSensorUpdatedAt(activeSensor)
+    });
+  } else {
+    updateDirectionCard(null);
+  }
   drawGraph();
 })();
 
