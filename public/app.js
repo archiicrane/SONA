@@ -57,8 +57,8 @@ const sensorColors = {
 const maxPoints = 120;
 const sensorIds = ["sona1", "sona2", "sona3"];
 const DASHBOARD_WINDOW_MS = 60 * 1000;
-const DASHBOARD_REFRESH_MS = 3 * 1000;
-const SENSOR_LIVE_WINDOW_MS = 2 * 60 * 1000;
+const DASHBOARD_REFRESH_MS = 30 * 1000;
+const SENSOR_LIVE_WINDOW_MS = 60 * 1000;
 const HEATMAP_DB_MIN = 35;
 const HEATMAP_DB_MAX = 95;
 const HEATMAP_IDW_POWER = 2;
@@ -72,6 +72,7 @@ const canvas = document.getElementById("waveCanvas");
 const ctx = canvas.getContext("2d");
 const heatmapCanvas = document.getElementById("dashboardHeatmapCanvas");
 const heatmapCtx = heatmapCanvas ? heatmapCanvas.getContext("2d") : null;
+let isAwsFetchInProgress = false;
 
 function goToSensor(sensorId) {
   window.location.href = `/history.html?sensor=${sensorId}`;
@@ -169,7 +170,7 @@ function isLiveTimestamp(updatedAt) {
   return updatedAt > 0 && Date.now() - updatedAt < SENSOR_LIVE_WINDOW_MS;
 }
 
-function isValidSensorData(sensor) {
+function hasUsableSensorData(sensor) {
   if (!sensor) return false;
 
   const sound = Number(sensor.sound_db);
@@ -179,7 +180,12 @@ function isValidSensorData(sensor) {
   return Number.isFinite(sound)
     && Number.isFinite(distance)
     && distance >= 0
-    && isLiveTimestamp(updatedAt);
+    && updatedAt > 0;
+}
+
+function isValidSensorData(sensor) {
+  if (!hasUsableSensorData(sensor)) return false;
+  return isLiveTimestamp(getSensorUpdatedAt(sensor));
 }
 
 function setMetricValue(element, text, isMissing) {
@@ -440,7 +446,7 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
   const distanceEl = document.getElementById(`${sensorId}Distance`);
   const statusEl = document.getElementById(`${sensorId}Status`);
 
-  if (!isValidSensorData(sensorData)) {
+  if (!hasUsableSensorData(sensorData)) {
     if (titleEl) titleEl.textContent = `Sensor ${sensorNumber}`;
     setMetricValue(soundEl, "--", true);
     setMetricValue(distanceEl, "-- cm", true);
@@ -478,7 +484,7 @@ function updateSensorCard(sensorId, sensorData, isActive, sensorNumber) {
       soundHistory[sensorId].shift();
     }
   } else {
-    setStatus(statusEl, null, "NO DATA");
+    setStatus(statusEl, null, "STALE");
   }
 
   updateBadge(badgeEl, isActive, isLive);
@@ -692,10 +698,32 @@ function updateDirectionCard(directionData) {
   updateBadge(badgeEl, true, true);
 }
 
+function renderDashboardFromCache() {
+  const activeSensorId = findLoudestSensor(sensorCache);
+  updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
+  updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
+  updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
+
+  // Direction estimate uses the latest cache snapshot across sensors.
+  const directionData = calculateWeightedDirection(sensorCache);
+  updateDirectionCard(directionData);
+
+  renderDashboardHeatmap(sensorCache);
+  drawGraph();
+}
+
 const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
 
 async function loadLiveData() {
+  if (isAwsFetchInProgress) {
+    console.log("[SONA] AWS fetch skipped because previous fetch is still running");
+    return;
+  }
+
+  isAwsFetchInProgress = true;
   try {
+    console.log(`[SONA] AWS fetch started at ${new Date().toISOString()}`);
+
     const response = await fetch(S3_LATEST_URL + "?t=" + Date.now()); // cache-bust
     if (!response.ok) throw new Error(`Live fetch failed with status ${response.status}`);
     const payload = await response.json();
@@ -721,33 +749,45 @@ async function loadLiveData() {
       }
     }
 
-    // Replace stale cache entries with null so only real incoming sensors render.
+    // Merge payload into cache so sensors not present in this response keep
+    // their last known value until the next shared poll.
     const newRows = [];
+    const updatedSensors = [];
     for (const id of sensorIds) {
-      sensorCache[id] = isValidSensorData(incoming[id]) ? incoming[id] : null;
-      if (sensorCache[id]) newRows.push(sensorCache[id]);
+      const nextSensor = incoming[id];
+      if (!nextSensor) continue;
+
+      if (!hasUsableSensorData(nextSensor)) {
+        console.warn(`[SONA] Ignoring malformed payload for ${id}`, nextSensor);
+        continue;
+      }
+
+      sensorCache[id] = nextSensor;
+      newRows.push(nextSensor);
+      updatedSensors.push(id);
     }
+
     saveSensorCache(sensorCache);
     if (newRows.length) appendToHistory(newRows);
 
-    const activeSensorId = findLoudestSensor(sensorCache);
-    updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
-    updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
-    updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
+    console.log(
+      `[SONA] AWS fetch complete. Updated sensors: ${updatedSensors.length ? updatedSensors.join(", ") : "none"}`
+    );
+    for (const id of sensorIds) {
+      const sensor = sensorCache[id];
+      const updatedAt = getSensorUpdatedAt(sensor);
+      const stampText = updatedAt ? new Date(updatedAt).toISOString() : "N/A";
+      const stateText = isValidSensorData(sensor) ? "LIVE" : "OFFLINE";
+      console.log(`[SONA] ${id}: timestamp=${stampText}, state=${stateText}`);
+    }
 
-    // Derive direction from weighted multi-sensor calculation
-    const directionData = calculateWeightedDirection(sensorCache);
-    updateDirectionCard(directionData);
-
-    renderDashboardHeatmap(sensorCache);
-    drawGraph();
+    renderDashboardFromCache();
   } catch (error) {
     console.error("[SONA] Failed to load live data:", error);
-    updateSensorCard("sona1", null, false, 1);
-    updateSensorCard("sona2", null, false, 2);
-    updateSensorCard("sona3", null, false, 3);
-    renderDashboardHeatmap({ sona1: null, sona2: null, sona3: null });
-    drawGraph();
+    // Keep rendering from cache on transient network failures.
+    renderDashboardFromCache();
+  } finally {
+    isAwsFetchInProgress = false;
   }
 }
 
@@ -756,16 +796,7 @@ resizeHeatmapCanvas();
 
 // Render whatever is in the cache immediately so UI isn't blank on navigation
 (function renderCachedImmediately() {
-  const activeSensorId = findLoudestSensor(sensorCache);
-  updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
-  updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
-  updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
-  
-  // Derive direction from weighted multi-sensor calculation
-  const directionData = calculateWeightedDirection(sensorCache);
-  updateDirectionCard(directionData);
-  renderDashboardHeatmap(sensorCache);
-  drawGraph();
+  renderDashboardFromCache();
 })();
 
 window.addEventListener("resize", () => {
