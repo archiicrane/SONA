@@ -5,6 +5,8 @@ const soundHistory = {
 };
 
 const CACHE_KEY = "sona_sensor_cache";
+const FETCH_LEADER_KEY = "sona_fetch_leader";
+const FETCH_LEADER_TTL_MS = 35 * 1000;
 const historyStore = window.SonaHistoryStore || null;
 
 function loadSensorCache() {
@@ -73,6 +75,18 @@ const ctx = canvas.getContext("2d");
 const heatmapCanvas = document.getElementById("dashboardHeatmapCanvas");
 const heatmapCtx = heatmapCanvas ? heatmapCanvas.getContext("2d") : null;
 let isAwsFetchInProgress = false;
+
+// Returns true if this tab should be the one to hit AWS this cycle.
+// Uses a shared localStorage timestamp so only one tab fetches at a time.
+function claimFetchLeadership() {
+  try {
+    const now = Date.now();
+    const raw = localStorage.getItem(FETCH_LEADER_KEY);
+    if (raw && now - Number(raw) < FETCH_LEADER_TTL_MS) return false;
+    localStorage.setItem(FETCH_LEADER_KEY, String(now));
+    return true;
+  } catch { return true; }
+}
 
 function goToSensor(sensorId) {
   window.location.href = `/history.html?sensor=${sensorId}`;
@@ -721,7 +735,16 @@ const S3_LATEST_URL = "https://sona-data-kelly.s3.amazonaws.com/latest.json";
 
 async function loadLiveData() {
   if (isAwsFetchInProgress) {
-    console.log("[SONA] AWS fetch skipped because previous fetch is still running");
+    console.log("[SONA] AWS fetch skipped: previous fetch still running");
+    return;
+  }
+
+  // Only one tab fetches at a time; all others sync via the storage event.
+  if (!claimFetchLeadership()) {
+    console.log("[SONA] AWS fetch deferred: another tab is fetch leader — syncing from shared cache");
+    const fresh = loadSensorCache();
+    for (const id of sensorIds) sensorCache[id] = fresh[id];
+    renderDashboardFromCache();
     return;
   }
 
@@ -809,6 +832,18 @@ window.addEventListener("resize", () => {
   resizeHeatmapCanvas();
   renderDashboardHeatmap(sensorCache);
   drawGraph();
+});
+
+// When any other tab writes sensorCache to localStorage, re-render immediately
+// so all windows always show the same data without needing their own AWS fetch.
+window.addEventListener("storage", (event) => {
+  if (event.key !== CACHE_KEY || !event.newValue) return;
+  try {
+    const updated = JSON.parse(event.newValue);
+    for (const id of sensorIds) sensorCache[id] = updated[id] ?? sensorCache[id];
+    console.log("[SONA] Cross-tab cache update received — re-rendering");
+    renderDashboardFromCache();
+  } catch { /* ignore malformed */ }
 });
 
 setInterval(loadLiveData, DASHBOARD_REFRESH_MS);
