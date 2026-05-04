@@ -553,6 +553,7 @@ function calculateWeightedDirection(sensorCache) {
 
     const layout = HEATMAP_SENSOR_LAYOUT[sensorId];
     const db = Number(sensor.sound_db);
+    const distance = Number(sensor.distance_cm);
     const weight = dbToWeight(db);
 
     validSensors.push({
@@ -560,6 +561,7 @@ function calculateWeightedDirection(sensorCache) {
       x: layout.x,
       y: layout.y,
       db,
+      distance,
       weight
     });
   }
@@ -578,11 +580,13 @@ function calculateWeightedDirection(sensorCache) {
   // Calculate weighted center
   let weightedX = 0;
   let weightedY = 0;
+  let weightedDistance = 0;
   let totalWeight = 0;
 
   for (const sensor of validSensors) {
     weightedX += sensor.x * sensor.weight;
     weightedY += sensor.y * sensor.weight;
+    weightedDistance += sensor.distance * sensor.weight;
     totalWeight += sensor.weight;
   }
 
@@ -598,6 +602,7 @@ function calculateWeightedDirection(sensorCache) {
 
   weightedX /= totalWeight;
   weightedY /= totalWeight;
+  weightedDistance /= totalWeight;
 
   // Calculate angle from room center (50, 50) to weighted center
   const centerX = 50;
@@ -637,7 +642,7 @@ function calculateWeightedDirection(sensorCache) {
     label: compassDirection,
     angle_deg: angleDeg,
     confidence: confidence,
-    estimated_distance_cm: null,  // Not calculating distance for now
+    estimated_distance_cm: Number.isFinite(weightedDistance) ? weightedDistance : null,
     updatedAt: latestTimestamp
   };
 }
