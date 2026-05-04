@@ -30,6 +30,16 @@ body {
 
 .video-panel-card {
   gap: 10px;
+  height: 94%;
+  margin-top: 8px;
+}
+
+.unity-video-title {
+  margin: -4px 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(243, 248, 255, 0.96);
 }
 
 .video-shell {
@@ -55,7 +65,7 @@ body {
   display: block;
   background: #030713;
   object-fit: cover;
-  object-position: center 62%;
+  object-position: center 70%;
 }
 
 .video-note {
