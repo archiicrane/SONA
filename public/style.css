@@ -535,6 +535,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   color: #F2F6FF;
+  min-width: 460px;
 }
 
 th,
@@ -543,6 +544,7 @@ td {
   border-bottom: 1px solid rgba(255,255,255,0.08);
   text-align: left;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 th {
@@ -1450,6 +1452,12 @@ body.analysis-scroll #distanceChart {
     overflow: visible;
   }
 
+  /* Raw data page: card fills all remaining space so table can scroll */
+  body.analysis-scroll .raw-data-card {
+    grid-row: 2 / -1;
+    min-height: 400px;
+  }
+
   body.analysis-scroll .history-grid {
     grid-template-columns: 1fr;
     overflow: visible;
@@ -1649,7 +1657,7 @@ body.analysis-scroll #distanceChart {
   th,
   td {
     font-size: 12px;
-    padding: 10px 8px;
+    padding: 9px 8px;
   }
 
   .unity-preview-video {

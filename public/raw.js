@@ -115,7 +115,11 @@ async function loadRawData() {
       if (!item) continue;
       const sound = Number(item.sound_db);
       const distance = Number(item.distance_cm);
-      const state = item.sound_state || item.state || stateFromSound(sound);
+      const state = (item.sound_state && item.sound_state !== "UNKNOWN")
+        ? item.sound_state
+        : (item.state && item.state !== "UNKNOWN")
+          ? item.state
+          : stateFromSound(sound);
       const row = document.createElement("tr");
       row.style.borderLeft = `4px solid ${sensorBorderColor(item.sensor_id)}`;
 
