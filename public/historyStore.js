@@ -12,6 +12,11 @@
     return "loud";
   }
 
+  function normalizeTimestamp(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
   function normalizeRow(row) {
     if (!row || typeof row !== "object") return null;
 
@@ -20,7 +25,7 @@
 
     const soundValue = Number(row.sound_db ?? row.sound);
     const distanceValue = Number(row.distance_cm);
-    const timestamp = row.timestamp;
+    const timestamp = normalizeTimestamp(row.timestamp);
 
     if (!timestamp) return null;
 

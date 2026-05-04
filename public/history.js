@@ -44,6 +44,81 @@ function formatDayLabel(date) {
   });
 }
 
+function startOfHour(date) {
+  const rounded = new Date(date);
+  rounded.setMinutes(0, 0, 0);
+  return rounded;
+}
+
+function startOfDay(date) {
+  const rounded = new Date(date);
+  rounded.setHours(0, 0, 0, 0);
+  return rounded;
+}
+
+function averageDefined(numbers) {
+  const valid = (numbers || []).filter((value) => value != null && !Number.isNaN(value));
+  return average(valid);
+}
+
+function fillForward(values) {
+  const filled = [];
+  let lastKnown = null;
+
+  for (const value of values) {
+    if (value != null && !Number.isNaN(value)) {
+      lastKnown = value;
+      filled.push(value);
+    } else {
+      filled.push(lastKnown);
+    }
+  }
+
+  return filled;
+}
+
+function finalizeBuckets(buckets) {
+  const base = buckets.map((bucket) => ({
+    label: bucket.label,
+    sensorAverages: {
+      sona1: average(bucket.sensorSounds.sona1),
+      sona2: average(bucket.sensorSounds.sona2),
+      sona3: average(bucket.sensorSounds.sona3)
+    },
+    sensorDistances: {
+      sona1: average(bucket.sensorDistances.sona1),
+      sona2: average(bucket.sensorDistances.sona2),
+      sona3: average(bucket.sensorDistances.sona3)
+    }
+  }));
+
+  const filledSounds = {};
+  const filledDistances = {};
+
+  for (const sensorId of sensorIds) {
+    filledSounds[sensorId] = fillForward(base.map((bucket) => bucket.sensorAverages[sensorId]));
+    filledDistances[sensorId] = fillForward(base.map((bucket) => bucket.sensorDistances[sensorId]));
+  }
+
+  return base.map((bucket, index) => {
+    const sensorAverages = {};
+    const sensorDistanceAverages = {};
+
+    for (const sensorId of sensorIds) {
+      sensorAverages[sensorId] = filledSounds[sensorId][index];
+      sensorDistanceAverages[sensorId] = filledDistances[sensorId][index];
+    }
+
+    return {
+      label: bucket.label,
+      sound: averageDefined(Object.values(sensorAverages)),
+      distance: averageDefined(Object.values(sensorDistanceAverages)),
+      sensorAverages,
+      sensorDistances: sensorDistanceAverages
+    };
+  });
+}
+
 function getLatestLoggedDate(rows) {
   let latest = null;
 
@@ -177,8 +252,7 @@ function updatePageHeading() {
 
 function buildHourBuckets(rows, hoursBack = 24) {
   const latestLogged = getLatestLoggedDate(rows) || new Date();
-  const anchorHourStart = new Date(latestLogged);
-  anchorHourStart.setMinutes(0, 0, 0);
+  const anchorHourStart = startOfHour(latestLogged);
 
   // Anchor to latest logged hour so persisted history still appears after reload.
   const endExclusive = new Date(anchorHourStart.getTime() + 60 * 60 * 1000);
@@ -191,9 +265,9 @@ function buildHourBuckets(rows, hoursBack = 24) {
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}`;
     bucketMap.set(key, {
       date: bucketDate,
-      sounds: [],
-      distances: [],
-      sensorSounds: { sona1: [], sona2: [], sona3: [] }
+      label: formatHourLabel(bucketDate),
+      sensorSounds: { sona1: [], sona2: [], sona3: [] },
+      sensorDistances: { sona1: [], sona2: [], sona3: [] }
     });
   }
 
@@ -201,8 +275,7 @@ function buildHourBuckets(rows, hoursBack = 24) {
     const date = parseTimestamp(row.timestamp);
     if (!date || date < start || date >= endExclusive) continue;
 
-    const bucketDate = new Date(date);
-    bucketDate.setMinutes(0, 0, 0);
+    const bucketDate = startOfHour(date);
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}-${bucketDate.getHours()}`;
     const bucket = bucketMap.get(key);
     if (!bucket) continue;
@@ -212,30 +285,21 @@ function buildHourBuckets(rows, hoursBack = 24) {
     const distance = Number(row.distance_cm);
 
     if (!Number.isNaN(sound)) {
-      bucket.sounds.push(sound);
       if (bucket.sensorSounds[row.sensor_id]) {
         bucket.sensorSounds[row.sensor_id].push(sound);
       }
     }
-    if (!Number.isNaN(distance) && distance >= 0) bucket.distances.push(distance);
+    if (!Number.isNaN(distance) && distance >= 0 && bucket.sensorDistances[row.sensor_id]) {
+      bucket.sensorDistances[row.sensor_id].push(distance);
+    }
   }
 
-  return Array.from(bucketMap.values()).map((bucket) => ({
-    label: formatHourLabel(bucket.date),
-    sound: average(bucket.sounds),
-    distance: average(bucket.distances),
-    sensorAverages: {
-      sona1: average(bucket.sensorSounds.sona1),
-      sona2: average(bucket.sensorSounds.sona2),
-      sona3: average(bucket.sensorSounds.sona3)
-    }
-  }));
+  return finalizeBuckets(Array.from(bucketMap.values()));
 }
 
 function buildDayBuckets(rows, daysBack = 30) {
   const latestLogged = getLatestLoggedDate(rows) || new Date();
-  const anchorDayStart = new Date(latestLogged);
-  anchorDayStart.setHours(0, 0, 0, 0);
+  const anchorDayStart = startOfDay(latestLogged);
 
   // Anchor day/month windows to latest logged day instead of current day.
   const start = new Date(anchorDayStart.getTime() - (daysBack - 1) * 24 * 60 * 60 * 1000);
@@ -248,9 +312,9 @@ function buildDayBuckets(rows, daysBack = 30) {
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}`;
     bucketMap.set(key, {
       date: bucketDate,
-      sounds: [],
-      distances: [],
-      sensorSounds: { sona1: [], sona2: [], sona3: [] }
+      label: formatDayLabel(bucketDate),
+      sensorSounds: { sona1: [], sona2: [], sona3: [] },
+      sensorDistances: { sona1: [], sona2: [], sona3: [] }
     });
   }
 
@@ -258,8 +322,7 @@ function buildDayBuckets(rows, daysBack = 30) {
     const date = parseTimestamp(row.timestamp);
     if (!date || date < start || date > endInclusive) continue;
 
-    const bucketDate = new Date(date);
-    bucketDate.setHours(0, 0, 0, 0);
+    const bucketDate = startOfDay(date);
     const key = `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${bucketDate.getDate()}`;
     const bucket = bucketMap.get(key);
     if (!bucket) continue;
@@ -269,24 +332,16 @@ function buildDayBuckets(rows, daysBack = 30) {
     const distance = Number(row.distance_cm);
 
     if (!Number.isNaN(sound)) {
-      bucket.sounds.push(sound);
       if (bucket.sensorSounds[row.sensor_id]) {
         bucket.sensorSounds[row.sensor_id].push(sound);
       }
     }
-    if (!Number.isNaN(distance) && distance >= 0) bucket.distances.push(distance);
+    if (!Number.isNaN(distance) && distance >= 0 && bucket.sensorDistances[row.sensor_id]) {
+      bucket.sensorDistances[row.sensor_id].push(distance);
+    }
   }
 
-  return Array.from(bucketMap.values()).map((bucket) => ({
-    label: formatDayLabel(bucket.date),
-    sound: average(bucket.sounds),
-    distance: average(bucket.distances),
-    sensorAverages: {
-      sona1: average(bucket.sensorSounds.sona1),
-      sona2: average(bucket.sensorSounds.sona2),
-      sona3: average(bucket.sensorSounds.sona3)
-    }
-  }));
+  return finalizeBuckets(Array.from(bucketMap.values()));
 }
 
 function updateSummary(bucketedData) {
@@ -375,6 +430,7 @@ function getChartConfig(view, labels, values, datasetsOverride = null) {
           borderColor: "#9FD0FF",
           backgroundColor: "rgba(159, 208, 255, 0.18)",
           fill: true,
+          spanGaps: true,
           tension: 0.35,
           pointRadius: 0,
           pointHoverRadius: 4
@@ -394,6 +450,7 @@ function getChartConfig(view, labels, values, datasetsOverride = null) {
         borderColor: "#9FD0FF",
         backgroundColor: "rgba(159, 208, 255, 0.18)",
         fill: true,
+        spanGaps: true,
         tension: 0.3,
         pointRadius: 0,
         pointHoverRadius: 4
@@ -448,6 +505,7 @@ function renderDistanceChart(bucketedData) {
         borderColor: "#C5B6FF",
         backgroundColor: "rgba(197, 182, 255, 0.15)",
         fill: true,
+        spanGaps: true,
         tension: 0.3,
         pointRadius: 0,
         pointHoverRadius: 4
@@ -513,6 +571,7 @@ async function loadHistory(view = "hour") {
         borderColor: sensorSeriesMeta[sensorId].color,
         backgroundColor: sensorSeriesMeta[sensorId].fill,
         fill: false,
+        spanGaps: true,
         tension: 0.3,
         pointRadius: 0,
         pointHoverRadius: 4,
