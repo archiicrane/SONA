@@ -476,6 +476,9 @@ body {
   white-space: nowrap;
   text-align: center;
   line-height: 1.2;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.10),
     0 8px 18px rgba(0, 0, 0, 0.14),
@@ -525,6 +528,7 @@ body {
 
 .table-wrap {
   overflow-x: auto;
+  overscroll-behavior: contain;
 }
 
 table {
@@ -561,6 +565,9 @@ th {
   padding: 10px 14px;
   cursor: pointer;
   font-size: 14px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.10),
     0 8px 18px rgba(0, 0, 0, 0.14);
@@ -1578,7 +1585,7 @@ body.analysis-scroll #distanceChart {
 
   .wave-actions .nav-button,
   .button-row .nav-button {
-    min-height: 38px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1590,7 +1597,7 @@ body.analysis-scroll #distanceChart {
   }
 
   .tab-button {
-    min-height: 38px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1642,6 +1649,67 @@ body.analysis-scroll #distanceChart {
 
   .video-note {
     font-size: 11px;
+  }
+}
+
+/* ===== Tiny phones (iPhone SE, Galaxy A series, ≤ 390px) ===== */
+@media (max-width: 390px) {
+  body {
+    padding: 6px;
+  }
+
+  .app-shell {
+    gap: 6px;
+  }
+
+  .dashboard,
+  .page-card {
+    border-radius: 14px;
+    padding: 10px;
+  }
+
+  .card {
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .sensor-grid {
+    gap: 6px;
+  }
+
+  .unity-card {
+    padding: 10px;
+  }
+
+  .unity-preview-video {
+    min-height: 180px;
+  }
+
+  .dashboard-heatmap-room {
+    min-height: 240px;
+  }
+
+  #waveCanvas {
+    min-height: 140px;
+  }
+
+  .status-box {
+    min-height: 40px;
+    font-size: 13px;
+  }
+
+  .value {
+    font-size: 18px;
+  }
+
+  .sona-title {
+    font-size: clamp(24px, 8vw, 30px);
+  }
+
+  .wave-actions,
+  .button-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
   }
 }
 
