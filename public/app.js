@@ -504,6 +504,138 @@ function findLoudestSensor(data) {
   return loudestId;
 }
 
+function dbToWeight(db, minDb = HEATMAP_DB_MIN, maxDb = HEATMAP_DB_MAX) {
+  if (!Number.isFinite(db)) return 0;
+  // Normalize dB to 0-1 range, then use as weight
+  // Louder sounds get higher weight
+  const normalized = (db - minDb) / (maxDb - minDb);
+  const clamped = Math.max(0, Math.min(1, normalized));
+  // Use exponential scaling so louder sensors have more influence
+  return clamped * clamped;
+}
+
+function angleToCompassDirection(angleDeg) {
+  // Normalize to 0-360 range
+  let normalized = angleDeg % 360;
+  if (normalized < 0) normalized += 360;
+
+  // Map to 16-point compass (or 8-point for simplicity)
+  // 0° = Right, 90° = Back, 180° = Left, 270° = Front
+  // Using 8 cardinal/intercardinal directions
+  const directions = [
+    "Right",           // 0-22.5°
+    "Back Right",      // 22.5-67.5°
+    "Back",            // 67.5-112.5°
+    "Back Left",       // 112.5-157.5°
+    "Left",            // 157.5-202.5°
+    "Front Left",      // 202.5-247.5°
+    "Front",           // 247.5-292.5°
+    "Front Right"      // 292.5-337.5°
+  ];
+
+  const index = Math.round(normalized / 45) % 8;
+  return directions[index];
+}
+
+function calculateWeightedDirection(sensorCache) {
+  // Collect all valid sensors
+  const validSensors = [];
+  
+  for (const sensorId of sensorIds) {
+    const sensor = sensorCache[sensorId];
+    if (!isValidSensorData(sensor)) continue;
+
+    const layout = HEATMAP_SENSOR_LAYOUT[sensorId];
+    const db = Number(sensor.sound_db);
+    const weight = dbToWeight(db);
+
+    validSensors.push({
+      sensorId,
+      x: layout.x,
+      y: layout.y,
+      db,
+      weight
+    });
+  }
+
+  // If fewer than 2 sensors, return "Not enough sensors"
+  if (validSensors.length < 2) {
+    return {
+      label: "Not enough sensors",
+      angle_deg: null,
+      confidence: "Low",
+      estimated_distance_cm: null,
+      updatedAt: 0
+    };
+  }
+
+  // Calculate weighted center
+  let weightedX = 0;
+  let weightedY = 0;
+  let totalWeight = 0;
+
+  for (const sensor of validSensors) {
+    weightedX += sensor.x * sensor.weight;
+    weightedY += sensor.y * sensor.weight;
+    totalWeight += sensor.weight;
+  }
+
+  if (totalWeight === 0) {
+    return {
+      label: "Not enough sensors",
+      angle_deg: null,
+      confidence: "Low",
+      estimated_distance_cm: null,
+      updatedAt: 0
+    };
+  }
+
+  weightedX /= totalWeight;
+  weightedY /= totalWeight;
+
+  // Calculate angle from room center (50, 50) to weighted center
+  const centerX = 50;
+  const centerY = 50;
+  const angleDeg = Math.atan2(weightedY - centerY, weightedX - centerX) * 180 / Math.PI;
+
+  // Map angle to compass direction
+  const compassDirection = angleToCompassDirection(angleDeg);
+
+  // Calculate confidence based on number of sensors and dB variance
+  let confidence = "Low";
+  if (validSensors.length === 2) {
+    confidence = "Medium";
+  } else if (validSensors.length === 3) {
+    // Calculate standard deviation of dB values
+    const avgDb = validSensors.reduce((sum, s) => sum + s.db, 0) / validSensors.length;
+    const variance = validSensors.reduce((sum, s) => sum + Math.pow(s.db - avgDb, 2), 0) / validSensors.length;
+    const stdDev = Math.sqrt(variance);
+
+    // More consistent readings (lower variance) = higher confidence
+    if (stdDev < 5) {
+      confidence = "High";
+    } else {
+      confidence = "Medium";
+    }
+  }
+
+  // Get latest timestamp from valid sensors
+  let latestTimestamp = 0;
+  for (const sensor of validSensors) {
+    const sensorObj = sensorCache[sensor.sensorId];
+    const ts = getSensorUpdatedAt(sensorObj);
+    latestTimestamp = Math.max(latestTimestamp, ts);
+  }
+
+  return {
+    label: compassDirection,
+    angle_deg: angleDeg,
+    confidence: confidence,
+    estimated_distance_cm: null,  // Not calculating distance for now
+    updatedAt: latestTimestamp
+  };
+}
+
 function prettyDirectionLabel(label) {
   if (!label || label === "UNKNOWN") return "Unknown";
   return String(label)
@@ -533,16 +665,24 @@ function updateDirectionCard(directionData) {
   }
 
   const angle = directionData.angle_deg != null ? Number(directionData.angle_deg) : NaN;
-  const confidence = directionData.confidence != null ? Number(directionData.confidence) : NaN;
+  const confidence = directionData.confidence;
   const estimatedDistance = directionData.estimated_distance_cm != null ? Number(directionData.estimated_distance_cm) : NaN;
 
   setMetricValue(labelEl, prettyDirectionLabel(directionData.label), false);
   setMetricValue(angleEl, Number.isFinite(angle) ? `${angle.toFixed(1)} deg` : "--", !Number.isFinite(angle));
-  setMetricValue(
-    confidenceEl,
-    Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : "--",
-    !Number.isFinite(confidence)
-  );
+  
+  // Handle both numeric and string confidence values
+  let confidenceText = "--";
+  let hasConfidence = false;
+  if (typeof confidence === "string" && confidence) {
+    confidenceText = confidence;
+    hasConfidence = true;
+  } else if (Number.isFinite(confidence)) {
+    confidenceText = `${Math.round(confidence * 100)}%`;
+    hasConfidence = true;
+  }
+  setMetricValue(confidenceEl, confidenceText, !hasConfidence);
+  
   setMetricValue(
     distanceEl,
     Number.isFinite(estimatedDistance) ? `${estimatedDistance.toFixed(1)} cm` : "-- cm",
@@ -595,20 +735,9 @@ async function loadLiveData() {
     updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
     updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
 
-    // Derive direction from loudest active sensor
-    if (activeSensorId && isValidSensorData(sensorCache[activeSensorId])) {
-      const activeSensor = sensorCache[activeSensorId];
-      const sensorNumber = { sona1: 1, sona2: 2, sona3: 3 }[activeSensorId];
-      updateDirectionCard({
-        label: activeSensor.direction_label || `Sensor ${sensorNumber}`,
-        angle_deg: activeSensor.direction_angle_deg ?? null,
-        confidence: activeSensor.direction_confidence ?? null,
-        estimated_distance_cm: activeSensor.estimated_direction_distance_cm ?? activeSensor.distance_cm ?? null,
-        updatedAt: activeSensor.timestamp ? new Date(activeSensor.timestamp).getTime() : 0
-      });
-    } else {
-      updateDirectionCard(null);
-    }
+    // Derive direction from weighted multi-sensor calculation
+    const directionData = calculateWeightedDirection(sensorCache);
+    updateDirectionCard(directionData);
 
     renderDashboardHeatmap(sensorCache);
     drawGraph();
@@ -631,19 +760,10 @@ resizeHeatmapCanvas();
   updateSensorCard("sona1", sensorCache.sona1, activeSensorId === "sona1", 1);
   updateSensorCard("sona2", sensorCache.sona2, activeSensorId === "sona2", 2);
   updateSensorCard("sona3", sensorCache.sona3, activeSensorId === "sona3", 3);
-  if (activeSensorId && isValidSensorData(sensorCache[activeSensorId])) {
-    const activeSensor = sensorCache[activeSensorId];
-    const sensorNumber = { sona1: 1, sona2: 2, sona3: 3 }[activeSensorId];
-    updateDirectionCard({
-      label: activeSensor.direction_label || `Sensor ${sensorNumber}`,
-      angle_deg: activeSensor.direction_angle_deg ?? null,
-      confidence: activeSensor.direction_confidence ?? null,
-      estimated_distance_cm: activeSensor.estimated_direction_distance_cm ?? activeSensor.distance_cm ?? null,
-      updatedAt: getSensorUpdatedAt(activeSensor)
-    });
-  } else {
-    updateDirectionCard(null);
-  }
+  
+  // Derive direction from weighted multi-sensor calculation
+  const directionData = calculateWeightedDirection(sensorCache);
+  updateDirectionCard(directionData);
   renderDashboardHeatmap(sensorCache);
   drawGraph();
 })();
