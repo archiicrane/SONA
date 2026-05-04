@@ -144,22 +144,17 @@
       </div>
 
       <div class="right-panel">
-        <div class="unity-card video-panel-card">
-          <div class="label">Unity Preview (Temporary Video)</div>
-          <div class="video-shell">
-            <video
-              id="unityPreviewVideo"
-              class="unity-preview-video"
-              controls
-              playsinline
-              preload="metadata"
-              src="/local-unity-preview.mp4"
-            >
-              Your browser does not support video playback.
-            </video>
+        <div class="unity-card video-panel-card heatmap-panel-card">
+          <div class="label">Estimated 3-Sensor Sound Heatmap</div>
+          <div class="dashboard-heatmap-shell">
+            <div class="dashboard-heatmap-room" id="dashboardHeatmapRoom">
+              <canvas id="dashboardHeatmapCanvas"></canvas>
+              <div class="dashboard-sensor-marker" id="heatmapSona1Marker" data-sensor="sona1">S1</div>
+              <div class="dashboard-sensor-marker" id="heatmapSona2Marker" data-sensor="sona2">S2</div>
+              <div class="dashboard-sensor-marker" id="heatmapSona3Marker" data-sensor="sona3">S3</div>
+            </div>
           </div>
-          <div id="videoLoadHint" class="video-load-hint" hidden></div>
-          <div class="video-note">Temporary fallback while WebGL build is being fixed.</div>
+          <div class="video-note">Estimated spatial sound map using fixed sensor positions and live dB readings.</div>
         </div>
       </div>
 
