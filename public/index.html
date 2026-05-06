@@ -151,17 +151,15 @@
         <div class="unity-card video-panel-card">
           <div class="label">Unity Preview Video</div>
           <div class="video-shell">
-            <video
-              id="unityPreviewVideo"
-              class="unity-preview-video"
-              controls
-              playsinline
-              preload="none"
-            >
-              Your browser does not support video playback.
-            </video>
+            <iframe
+              src="https://rpiexchange-my.sharepoint.com/personal/ordont_rpi_edu/_layouts/15/embed.aspx?UniqueId=87ce0603-928a-44b1-9641-aa53a69433f4&embed=%7B%22ust%22%3Atrue%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create"
+              class="unity-preview-embed"
+              frameborder="0"
+              scrolling="no"
+              allowfullscreen
+              title="Untitled design.mp4"
+            ></iframe>
           </div>
-          <div id="videoLoadHint" class="video-load-hint" hidden></div>
         </div>
       </div>
 
@@ -169,6 +167,5 @@
 
   <script src="./historyStore.js"></script>
   <script src="./app.js"></script>
-  <script src="./videoPreview.js"></script>
 </body>
 </html>
