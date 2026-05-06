@@ -55,7 +55,8 @@ body {
   left: 50%;
   width: 148%;
   height: 148%;
-  transform: translate(-50%, -52%);
+  transform: translate(-50%, -50%);
+  transform-origin: center center;
   min-height: 380px;
   display: block;
   background: #030713;
@@ -660,7 +661,7 @@ th {
   .unity-preview-embed {
     width: 170%;
     height: 170%;
-    transform: translate(-50%, -54%);
+    transform: translate(-50%, -50%);
     min-height: 300px;
   }
 
