@@ -53,9 +53,9 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 122%;
-  height: 122%;
-  transform: translate(-50%, -50%);
+  width: 148%;
+  height: 148%;
+  transform: translate(-50%, -52%);
   min-height: 380px;
   display: block;
   background: #030713;
@@ -658,6 +658,9 @@ th {
   }
 
   .unity-preview-embed {
+    width: 170%;
+    height: 170%;
+    transform: translate(-50%, -54%);
     min-height: 300px;
   }
 
